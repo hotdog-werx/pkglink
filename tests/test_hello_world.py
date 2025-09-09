@@ -1,6 +1,6 @@
 """Simple hello world test to get started."""
 
-import pytest
+from pkglink import __version__
 from pkglink.cli.main import main
 
 
@@ -12,6 +12,4 @@ def test_hello_world():
 
 def test_version_import():
     """Test that we can import the version."""
-    from pkglink import __version__
-    
-    assert __version__ == "0.0.0.dev0"
+    assert __version__ == '0.0.0.dev0'

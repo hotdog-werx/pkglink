@@ -4,6 +4,7 @@ python.uv_venv_auto = true
 
 [env]
 COVERAGE_RCFILE = "configs/.coveragerc"
+TB_PROJECT_SOURCE = "pkglink"
 
 [tools]
 uv = "0.7.20"

@@ -7,4 +7,7 @@ __pycache__/
 .coverage
 .coverage.*
 .coverage-files/
+test_ignored.py
 htmlcov/
+book/
+.pytest_cache/*
