@@ -1,11 +1,11 @@
 import argparse
-import logging
 import re
 from pathlib import Path
 
+from pkglink.logging import get_logger
 from pkglink.models import CliArgs, SourceSpec
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -72,23 +72,20 @@ def determine_install_spec_and_module(args: CliArgs) -> tuple[SourceSpec, str]:
     """Determine what to install and which module to look for based on CLI args."""
     if args.from_package:
         logger.info(
-            'Using --from: installing %s but looking for module %s',
-            args.from_package,
-            args.source,
+            'Using --from option',
+            install_package=args.from_package,
+            module_name=args.source,
         )
         install_spec = parse_source(args.from_package)
-        logger.info('Parsed install spec: %s', install_spec)
+        logger.info('Parsed install spec', install_spec=install_spec.model_dump())
 
         module_name = args.source
-        logger.info('Will look for module: %s', module_name)
+        logger.info('Will look for module', module=module_name)
     else:
-        logger.info(
-            'Normal mode: parsing source specification: %s',
-            args.source,
-        )
+        logger.info('Parsing source specification', source=args.source)
         install_spec = parse_source(args.source)
         module_name = install_spec.name
-        logger.info('Parsed source spec: %s', install_spec)
+        logger.info('Parsed source spec', source_spec=install_spec.model_dump())
 
     return install_spec, module_name
 

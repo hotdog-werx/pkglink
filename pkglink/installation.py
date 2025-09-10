@@ -1,97 +1,75 @@
 import hashlib
-import logging
 import shutil
 import subprocess
 import tempfile
 from difflib import SequenceMatcher
 from pathlib import Path
 
+from pkglink.logging import get_logger
 from pkglink.models import SourceSpec
 from pkglink.parsing import build_uv_install_spec
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def find_python_package(install_dir: Path) -> Path | None:
     """Find the first directory with __init__.py (Python package)."""
-    logger.debug(
-        'Looking for Python package (with __init__.py) in %s',
-        install_dir,
-    )
+    logger.debug('Looking for Python package', directory=str(install_dir))
     for item in install_dir.iterdir():
         if item.is_dir() and (item / '__init__.py').exists():
-            logger.debug('Python package found: %s', item.name)
+            logger.debug('Python package found', package=item.name)
             return item
-    logger.debug('No Python package found in %s', install_dir)
+    logger.debug('No Python package found', directory=str(install_dir))
     return None
 
 
 def find_with_resources(install_dir: Path) -> Path | None:
     """Find the first directory containing 'resources' folder."""
-    logger.debug(
-        'Looking for directory with resources folder in %s',
-        install_dir,
-    )
+    logger.debug('Looking for directory with resources', directory=str(install_dir))
     for item in install_dir.iterdir():
         if item.is_dir() and (item / 'resources').exists():
-            logger.debug('Directory with resources found: %s', item.name)
+            logger.debug('Directory with resources found', directory=item.name)
             return item
-    logger.debug('No directory with resources found in %s', install_dir)
+    logger.debug('No directory with resources found', directory=str(install_dir))
     return None
 
 
 def find_exact_match(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory that exactly matches the expected name."""
-    logger.debug(
-        'Looking for exact match "%s" in %s',
-        expected_name,
-        install_dir,
-    )
+    logger.debug('Looking for exact match', expected=expected_name, directory=str(install_dir))
     target = install_dir / expected_name
     if target.is_dir():
-        logger.debug('Exact match found: %s', target.name)
+        logger.debug('Exact match found', match=target.name)
         return target
-    logger.debug('No exact match found for "%s"', expected_name)
+    logger.debug('No exact match found', expected=expected_name)
     return None
 
 
 def find_by_prefix(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory that starts with the expected name."""
-    logger.debug(
-        'Looking for prefix match "%s*" in %s',
-        expected_name,
-        install_dir,
-    )
+    logger.debug('Looking for prefix match', prefix=expected_name, directory=str(install_dir))
     for item in install_dir.iterdir():
         if item.is_dir() and item.name.startswith(expected_name):
-            logger.debug('Prefix match found: %s', item.name)
+            logger.debug('Prefix match found', match=item.name)
             return item
-    logger.debug('No prefix match found for "%s"', expected_name)
+    logger.debug('No prefix match found', expected=expected_name)
     return None
 
 
 def find_by_suffix(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory that ends with the expected name."""
-    logger.debug(
-        'Looking for suffix match "*%s" in %s',
-        expected_name,
-        install_dir,
-    )
+    logger.debug('Looking for suffix match', suffix=expected_name, directory=str(install_dir))
     for item in install_dir.iterdir():
         if item.is_dir() and item.name.endswith(expected_name):
-            logger.debug('Suffix match found: %s', item.name)
+            logger.debug('Suffix match found', match=item.name)
             return item
-    logger.debug('No suffix match found for "%s"', expected_name)
+    logger.debug('No suffix match found', expected=expected_name)
     return None
 
 
 def find_by_similarity(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory with the highest similarity to the expected name."""
-    logger.debug(
-        'Looking for similarity match to "%s" in %s',
-        expected_name,
-        install_dir,
-    )
+    logger.debug('Looking for similarity match', expected=expected_name, directory=str(install_dir))
     best_match = None
     best_ratio = 0.6  # Minimum similarity threshold
 
@@ -107,25 +85,21 @@ def find_by_similarity(install_dir: Path, expected_name: str) -> Path | None:
                 best_match = item
 
     if best_match:
-        logger.debug(
-            'Similarity match found: %s (ratio: %.2f)',
-            best_match.name,
-            best_ratio,
-        )
+        logger.debug('Similarity match found', match=best_match.name, ratio=best_ratio)
         return best_match
 
-    logger.debug('No similarity match found for "%s"', expected_name)
+    logger.debug('No similarity match found', expected=expected_name)
     return None
 
 
 def find_first_directory(install_dir: Path) -> Path | None:
     """Find the first non-hidden, non-dist-info directory."""
-    logger.debug('Looking for first directory in %s', install_dir)
+    logger.debug('Looking for first directory', directory=str(install_dir))
     for item in install_dir.iterdir():
         if item.is_dir() and not item.name.startswith('.') and not item.name.endswith('.dist-info'):
-            logger.debug('First directory found: %s', item.name)
+            logger.debug('First directory found', directory=item.name)
             return item
-    logger.debug('No suitable directory found in %s', install_dir)
+    logger.debug('No suitable directory found', directory=str(install_dir))
     return None
 
 

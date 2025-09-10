@@ -46,8 +46,6 @@ def pre_process_log(event_msg: str, event_dict: EventDict) -> tuple[str, str]:
     """
     for key in ('timestamp', 'level', 'log_level', 'event'):
         event_dict.pop(key, None)
-    if event_msg == 'executing' and 'command' in event_dict:
-        return event_dict.pop('command'), event_dict.pop('tool', '')
     return event_msg, ''
 
 
@@ -82,13 +80,9 @@ def cli_renderer(
     }
     # Pick style, fallback to bold cyan for unknown
     style = level_styles.get(level, 'bold cyan')
-
-    if level == 'INFO' and tool_name:
-        log_msg = f'[bold #888888]tb\\[{tool_name}] =>[/bold #888888] [blue]{event_msg}[/blue]'
-    else:
-        log_msg = f'[bold {style}][{level}][/bold {style}] [{style}]{event_msg}[/{style}]'
-
+    log_msg = f'[bold {style}][{level}][/bold {style}] [{style}]{event_msg}[/{style}]'
     console.print(log_msg)
+    
     if context_yaml:
         syntax = Syntax(
             context_yaml,
@@ -102,7 +96,7 @@ def cli_renderer(
 
 
 def configure_logging(*, verbose: bool = False) -> None:
-    """Configure structlog for toolbelt.
+    """Configure structlog for pkglink.
 
     Args:
         verbose: Enable verbose/debug output
