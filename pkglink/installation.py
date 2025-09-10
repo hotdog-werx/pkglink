@@ -1,7 +1,6 @@
 import hashlib
 import shutil
 import subprocess
-import tempfile
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -221,40 +220,16 @@ def resolve_source_path(
         logger.debug('resolved_local_path', path=str(path))
         return path
 
-    # For remote sources, try uvx first, then fallback to uv
+    # For remote sources, use uvx to install
     target_module = module_name or spec.name
     logger.debug('target_module_to_find', module=target_module)
 
-    try:
-        # Try uvx approach first
-        logger.debug('attempting_uvx_installation')
-        install_dir = install_with_uvx(spec)
-    except Exception as e:
-        logger.warning('uvx_installation_failed', error=str(e))
-
-        try:
-            # Fallback to uv pip install --target
-            logger.debug('attempting_fallback_uv_installation')
-            install_dir = install_with_uv(spec)
-        except Exception as fallback_error:
-            logger.exception(
-                'both_installation_methods_failed',
-                uvx_error=str(e),
-                uv_error=str(fallback_error),
-            )
-            msg = f'Failed to install {spec}: uvx error: {e}, uv error: {fallback_error}'
-            raise RuntimeError(msg) from fallback_error
-        else:
-            package_root = find_package_root(install_dir, target_module)
-            logger.debug(
-                'successfully_resolved_via_uv_fallback',
-                path=str(package_root),
-            )
-            return package_root
-    else:
-        package_root = find_package_root(install_dir, target_module)
-        logger.debug('successfully_resolved_via_uvx', path=str(package_root))
-        return package_root
+    # Use uvx to install the package
+    logger.debug('attempting_uvx_installation')
+    install_dir = install_with_uvx(spec)
+    package_root = find_package_root(install_dir, target_module)
+    logger.debug('successfully_resolved_via_uvx', path=str(package_root))
+    return package_root
 
 
 def install_with_uvx(spec: SourceSpec) -> Path:
@@ -294,11 +269,12 @@ def install_with_uvx(spec: SourceSpec) -> Path:
         ]
         logger.debug('running_uvx_command', _debug_command=' '.join(cmd))
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 - executing uvx
             cmd,
             capture_output=True,
             text=True,
             check=True,
+            shell=False,
         )
 
         # Get the site-packages directory from uvx's environment
@@ -318,36 +294,3 @@ def install_with_uvx(spec: SourceSpec) -> Path:
         raise RuntimeError(msg) from e
     else:
         return cache_dir
-
-
-def install_with_uv(spec: SourceSpec) -> Path:
-    """Install package using uv pip install --target."""
-    logger.debug('installing_using_uv_fallback', package=spec.name)
-
-    # Use a temporary directory for installation
-    temp_dir = Path(tempfile.mkdtemp(prefix='pkglink_uv_'))
-
-    try:
-        install_spec = build_uv_install_spec(spec)
-        logger.debug('install_spec', spec=install_spec)
-
-        cmd = ['uv', 'pip', 'install', '--target', str(temp_dir), install_spec]
-        logger.debug('running_uv_command', _debug_command=' '.join(cmd))
-
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        logger.debug('installation_successful', _debug_output=result.stdout)
-    except subprocess.CalledProcessError as e:
-        logger.exception('uv installation failed')
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        msg = f'Failed to install {spec.name} with uv: {e.stderr}'
-        raise RuntimeError(msg) from e
-    except Exception:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        raise
-    else:
-        return temp_dir

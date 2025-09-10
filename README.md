@@ -3,6 +3,26 @@
 Create symlinks to python package directories from PyPI packages or GitHub repos
 into your current working directory.
 
+## ⚠️ Requirements
+
+**This tool requires `uv` to be installed on your system.**
+
+`pkglink` depends entirely on the [`uv`](https://docs.astral.sh/uv/) package
+manager for all installation and authentication tasks. `uv` handles:
+
+- Package installation from PyPI
+- GitHub repository handling
+- Authentication for private repositories
+- Dependency resolution and caching
+- Environment isolation via `uvx`
+
+**Install `uv` first:**
+
+```bash
+# Install uv (see https://docs.astral.sh/uv/getting-started/installation/)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 ## Overview
 
 `pkglink` is a CLI tool designed for configuration sharing and quick access to
@@ -66,6 +86,10 @@ pkglink --force mypackage resources
 - `--dry-run`: Show what would be done without making changes
 - `--verbose`: Enable verbose logging
 
+**Note**: If the target symlink already exists, `pkglink` will skip the
+operation and exit successfully (unless `--force` is used). This makes it safe
+to run in setup scripts multiple times.
+
 ### Advanced Usage
 
 ```bash
@@ -81,15 +105,17 @@ pkglink --symlink-name .my-configs --force mypackage configs
 
 ## How It Works
 
-`pkglink` leverages a hybrid approach combining `uvx`'s efficient package
-management with its own intelligent caching system:
+`pkglink` leverages `uv`'s powerful package management capabilities through its
+`uvx` tool:
 
 ### 1. uvx Integration
 
-- **First Installation**: Uses `uvx` to install packages in isolated
-  environments
-- **Dependency Resolution**: Leverages `uvx`'s robust dependency handling
+- **Package Installation**: Uses `uvx` (part of `uv`) to install packages in
+  isolated environments
+- **Dependency Resolution**: Leverages `uv`'s robust dependency handling and
+  authentication
 - **Environment Isolation**: Each package gets proper isolation via `uvx`
+- **Authentication**: Inherits all `uv` authentication for private repositories
 
 ### 2. Intelligent Caching
 
@@ -110,12 +136,6 @@ installation:
 4. **Prefix/Suffix Matching**: Flexible name matching
 5. **Similarity Matching**: Fuzzy matching for close names
 6. **Fallback**: Uses the first suitable directory
-
-### 4. Fallback Mechanism
-
-If `uvx` installation fails, `pkglink` automatically falls back to direct
-`uv pip install --target` installation, ensuring reliability across different
-environments.
 
 ## Use Cases
 
@@ -145,14 +165,16 @@ pkglink --symlink-name .templates cookiecutter-templates django
 
 ## Benefits
 
-- **Fast**: Leverages uvx caching + additional persistent caching
-- **Reliable**: Multiple fallback strategies for package discovery
+- **Fast**: Leverages `uvx` caching + additional persistent caching
+- **Reliable**: Uses `uv`'s robust package installation with multiple fallback
+  strategies for package discovery
 - **Flexible**: Supports PyPI packages, GitHub repos, and local paths
 - **Safe**: Dry-run mode and intelligent conflict detection
-- **Convenient**: Can be used with uvx without installation
+- **Convenient**: Can be used with `uvx` without installation
+- **Authenticated**: Inherits all `uv` authentication for private repositories
 
 ## Requirements
 
+- **`uv`** (required) - Handles all package installation and authentication
 - Python 3.11+
-- `uv` (automatically used for package installation)
-- `uvx` (optional, for running without installation)
+- `uvx` (part of `uv`, used for package installation)
