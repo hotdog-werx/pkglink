@@ -139,7 +139,10 @@ class TestListManagedLinks:
             result_names = {path.name for path in result}
             assert result_names == {'.managed1', '.managed2'}
 
-    def test_list_managed_links_default_cwd(self, mocker: MockerFixture) -> None:
+    def test_list_managed_links_default_cwd(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
         """Test listing managed links with default current directory."""
         mock_dir = mocker.Mock()
         mock_dir.iterdir.return_value = []
