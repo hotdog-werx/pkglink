@@ -1,50 +1,32 @@
-"""Pydantic models for pkglink."""
-
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, StringConstraints
 
 
 class SourceSpec(BaseModel):
     """Represents a parsed source specification."""
 
     source_type: Literal['github', 'package', 'local']
-    name: str
+    name: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
     version: str | None = None
     org: str | None = None  # For GitHub sources
-
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate that name is not empty."""
-        if not v.strip():
-            msg = 'Source name cannot be empty'
-            raise ValueError(msg)
-        return v.strip()
 
 
 class LinkTarget(BaseModel):
     """Represents the target for a symlink operation."""
 
     source_path: Path
-    target_directory: str = 'resources'
+    target_directory: Annotated[
+        str,
+        StringConstraints(min_length=1, strip_whitespace=True),
+    ] = 'resources'
     symlink_name: str | None = None
 
-    @field_validator('source_path')
-    @classmethod
-    def validate_source_path(cls, v: Path) -> Path:
-        """Resolve source path to absolute path."""
-        return v.resolve()
-
-    @field_validator('target_directory')
-    @classmethod
-    def validate_target_directory(cls, v: str) -> str:
-        """Validate that target directory is not empty."""
-        if not v.strip():
-            msg = 'Target directory cannot be empty'
-            raise ValueError(msg)
-        return v.strip()
+    @property
+    def resolved_source_path(self) -> Path:
+        """Get the resolved absolute path."""
+        return self.source_path.resolve()
 
 
 class LinkOperation(BaseModel):
@@ -58,11 +40,22 @@ class LinkOperation(BaseModel):
     @property
     def symlink_name(self) -> str:
         """Get the final symlink name."""
-        if self.target.symlink_name:
-            return self.target.symlink_name
-        return f'.{self.spec.name}'
+        symlink_name = self.target.symlink_name
+        return symlink_name if symlink_name else f'.{self.spec.name}'
 
     @property
     def full_source_path(self) -> Path:
         """Get the full path to the source directory."""
-        return self.target.source_path / self.target.target_directory
+        return self.target.resolved_source_path / self.target.target_directory
+
+
+class CliArgs(BaseModel):
+    """Command line arguments model."""
+
+    source: str
+    directory: str = 'resources'
+    symlink_name: str | None = None
+    force: bool = False
+    dry_run: bool = False
+    verbose: bool = False
+    from_package: str | None = None
