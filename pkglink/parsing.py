@@ -14,16 +14,25 @@ def parse_source(source: str) -> SourceSpec:
     - package-name[@version]
     - ./local/path or /absolute/path
     """
-    # GitHub format: github:org/repo[@version]
-    github_match = re.match(r'^github:([^/]+)/([^@]+)(?:@(.+))?$', source)
-    if github_match:
-        org, repo, version = github_match.groups()
-        return SourceSpec(
-            source_type='github',
-            name=repo,
-            org=org,
-            version=version,
-        )
+    # Check for malformed GitHub patterns first
+    if source.startswith('github:'):
+        # GitHub format: github:org/repo[@version]
+        github_match = re.match(r'^github:([^/]+)/([^@/]+)(?:@(.+))?$', source)
+        if github_match:
+            org, repo, version = github_match.groups()
+            # Validate that org and repo are not empty
+            if not org.strip() or not repo.strip():
+                msg = f'Invalid source format: {source}'
+                raise ValueError(msg)
+            return SourceSpec(
+                source_type='github',
+                name=repo.strip(),
+                org=org.strip(),
+                version=version.strip() if version else None,
+            )
+        # Invalid GitHub format
+        msg = f'Invalid source format: {source}'
+        raise ValueError(msg)
 
     # Local path format: starts with ./ or / or ~
     if source.startswith(('./', '/', '~')):
