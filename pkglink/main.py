@@ -26,10 +26,10 @@ def handle_dry_run(
 
     logger.info(
         'dry_run_mode',
-        install_spec=install_spec.model_dump(),
-        module_name=module_name,
         directory=args.directory,
+        module_name=module_name,
         symlink_name=args.symlink_name or f'.{module_name}',
+        _verbose_install_spec=install_spec.model_dump(),
     )
 
 
@@ -94,7 +94,14 @@ def main() -> None:
     # Configure logging first
     configure_logging(verbose=args.verbose)
 
-    logger.info('starting_pkglink', args=args.model_dump())
+    logger.info(
+        'starting_pkglink',
+        source=args.source,
+        directory=args.directory,
+        dry_run=args.dry_run,
+        force=args.force,
+        _verbose_args=args.model_dump(),
+    )
 
     try:
         install_spec, module_name = determine_install_spec_and_module(args)
@@ -107,8 +114,8 @@ def main() -> None:
         # Resolve the source path using install_spec but look for module_name
         logger.info(
             'resolving_source_path',
-            install_spec=install_spec.model_dump(),
             module=module_name,
+            _verbose_install_spec=install_spec.model_dump(),
         )
 
         source_path = resolve_source_path(install_spec, module_name)
@@ -120,7 +127,13 @@ def main() -> None:
             target_directory=args.directory,
             symlink_name=args.symlink_name,
         )
-        logger.info('created_link_target', target=target.model_dump())
+        logger.info(
+            'created_link_target',
+            source_path=str(target.source_path),
+            target_directory=target.target_directory,
+            symlink_name=target.symlink_name,
+            _verbose_target=target.model_dump(),
+        )
 
         # Create link operation
         operation = LinkOperation(
@@ -129,7 +142,12 @@ def main() -> None:
             force=args.force,
             dry_run=args.dry_run,
         )
-        logger.info('created_link_operation', operation=operation.model_dump())
+        logger.info(
+            'created_link_operation',
+            symlink_name=operation.symlink_name,
+            full_source_path=str(operation.full_source_path),
+            _verbose_operation=operation.model_dump(),
+        )
 
         execute_symlink_operation(args, operation)
 

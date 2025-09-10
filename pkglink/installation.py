@@ -25,18 +25,28 @@ def find_python_package(install_dir: Path) -> Path | None:
 
 def find_with_resources(install_dir: Path) -> Path | None:
     """Find the first directory containing 'resources' folder."""
-    logger.debug('looking_for_directory_with_resources', directory=str(install_dir))
+    logger.debug(
+        'looking_for_directory_with_resources',
+        directory=str(install_dir),
+    )
     for item in install_dir.iterdir():
         if item.is_dir() and (item / 'resources').exists():
             logger.debug('directory_with_resources_found', directory=item.name)
             return item
-    logger.debug('no_directory_with_resources_found', directory=str(install_dir))
+    logger.debug(
+        'no_directory_with_resources_found',
+        directory=str(install_dir),
+    )
     return None
 
 
 def find_exact_match(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory that exactly matches the expected name."""
-    logger.debug('looking_for_exact_match', expected=expected_name, directory=str(install_dir))
+    logger.debug(
+        'looking_for_exact_match',
+        expected=expected_name,
+        directory=str(install_dir),
+    )
     target = install_dir / expected_name
     if target.is_dir():
         logger.debug('exact_match_found', match=target.name)
@@ -47,7 +57,11 @@ def find_exact_match(install_dir: Path, expected_name: str) -> Path | None:
 
 def find_by_prefix(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory that starts with the expected name."""
-    logger.debug('looking_for_prefix_match', prefix=expected_name, directory=str(install_dir))
+    logger.debug(
+        'looking_for_prefix_match',
+        prefix=expected_name,
+        directory=str(install_dir),
+    )
     for item in install_dir.iterdir():
         if item.is_dir() and item.name.startswith(expected_name):
             logger.debug('prefix_match_found', match=item.name)
@@ -58,7 +72,11 @@ def find_by_prefix(install_dir: Path, expected_name: str) -> Path | None:
 
 def find_by_suffix(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory that ends with the expected name."""
-    logger.debug('looking_for_suffix_match', suffix=expected_name, directory=str(install_dir))
+    logger.debug(
+        'looking_for_suffix_match',
+        suffix=expected_name,
+        directory=str(install_dir),
+    )
     for item in install_dir.iterdir():
         if item.is_dir() and item.name.endswith(expected_name):
             logger.debug('suffix_match_found', match=item.name)
@@ -69,7 +87,11 @@ def find_by_suffix(install_dir: Path, expected_name: str) -> Path | None:
 
 def find_by_similarity(install_dir: Path, expected_name: str) -> Path | None:
     """Find a directory with the highest similarity to the expected name."""
-    logger.debug('looking_for_similarity_match', expected=expected_name, directory=str(install_dir))
+    logger.debug(
+        'looking_for_similarity_match',
+        expected=expected_name,
+        directory=str(install_dir),
+    )
     best_match = None
     best_ratio = 0.6  # Minimum similarity threshold
 
@@ -85,7 +107,11 @@ def find_by_similarity(install_dir: Path, expected_name: str) -> Path | None:
                 best_match = item
 
     if best_match:
-        logger.debug('similarity_match_found', match=best_match.name, ratio=best_ratio)
+        logger.debug(
+            'similarity_match_found',
+            match=best_match.name,
+            ratio=best_ratio,
+        )
         return best_match
 
     logger.debug('no_similarity_match_found', expected=expected_name)
