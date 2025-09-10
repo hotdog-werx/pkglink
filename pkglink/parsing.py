@@ -1,9 +1,12 @@
 """Source parsing utilities for pkglink."""
 
+import logging
 import re
 from pathlib import Path
 
 from pkglink.models import SourceSpec
+
+logger = logging.getLogger(__name__)
 
 
 def parse_source(source: str) -> SourceSpec:

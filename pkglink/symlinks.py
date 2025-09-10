@@ -1,8 +1,11 @@
 """Symlink management utilities."""
 
+import logging
 import os
 import shutil
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def supports_symlinks() -> bool:
@@ -15,26 +18,37 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
 
     Returns True if symlink was created, False if fallback copy was used.
     """
+    logger.info('Creating symlink: %s -> %s (force=%s)', target, source, force)
+    
     if target.exists() and not force:
+        logger.error('Target already exists and force=False: %s', target)
         msg = f'Target already exists: {target}'
         raise FileExistsError(msg)
 
     if target.exists() and force:
+        logger.info('Removing existing target: %s', target)
         remove_target(target)
 
     if not source.exists():
+        logger.error('Source does not exist: %s', source)
         msg = f'Source does not exist: {source}'
         raise FileNotFoundError(msg)
 
     if supports_symlinks():
+        logger.info('Creating symlink using os.symlink')
         target.symlink_to(source, target_is_directory=source.is_dir())
+        logger.info('Successfully created symlink')
         return True
 
     # Fallback to copying
+    logger.info('Symlinks not supported, falling back to copy')
     if source.is_dir():
+        logger.info('Copying directory tree')
         shutil.copytree(source, target)
     else:
+        logger.info('Copying file')
         shutil.copy2(source, target)
+    logger.info('Successfully created copy')
     return False
 
 

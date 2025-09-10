@@ -141,3 +141,35 @@ class TestResolveSourcePath:
             fake_install_dir,
             'myrepo',
         )
+
+    def test_resolve_remote_source_with_different_module(self, mocker: MockerFixture) -> None:
+        """Test resolving remote source path with different module name."""
+        # Mock the UV installation and package finding
+        fake_install_dir = Path('/fake/install/dir')
+        fake_package_root = Path('/fake/package/root')
+
+        mock_install_with_uv = mocker.patch.object(
+            installation,
+            'install_with_uv',
+            return_value=fake_install_dir,
+        )
+        mock_find_package_root = mocker.patch.object(
+            installation,
+            'find_package_root',
+            return_value=fake_package_root,
+        )
+
+        # Install package 'tbelt' but look for module 'toolbelt'
+        install_spec = SourceSpec(
+            source_type='pypi',
+            name='tbelt',
+        )
+
+        result = resolve_source_path(install_spec, module_name='toolbelt')
+
+        assert result == fake_package_root
+        mock_install_with_uv.assert_called_once_with(install_spec)
+        mock_find_package_root.assert_called_once_with(
+            fake_install_dir,
+            'toolbelt',  # Should look for 'toolbelt', not 'tbelt'
+        )
