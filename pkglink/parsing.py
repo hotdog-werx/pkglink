@@ -110,46 +110,69 @@ def parse_source(source: str) -> SourceSpec:
     - package-name[@version]
     - ./local/path or /absolute/path
     """
-    # Check for malformed GitHub patterns first
     if source.startswith('github:'):
-        # GitHub format: github:org/repo[@version]
-        github_match = re.match(r'^github:([^/]+)/([^@/]+)(?:@(.+))?$', source)
-        if github_match:
-            org, repo, version = github_match.groups()
-            # Validate that org and repo are not empty
-            if not org.strip() or not repo.strip():
-                msg = f'Invalid source format: {source}'
-                raise ValueError(msg)
-            return SourceSpec(
-                source_type='github',
-                name=repo.strip(),
-                org=org.strip(),
-                version=version.strip() if version else None,
-            )
-        # Invalid GitHub format
+        return _parse_github_source(source)
+
+    if _is_local_path(source):
+        return SourceSpec(
+            source_type='local',
+            name=_extract_local_name(source),
+        )
+
+    return _parse_package_source(source)
+
+
+def _is_local_path(source: str) -> bool:
+    """Check if the source string represents a local path."""
+    return (
+        source.startswith(('./', '/', '~'))
+        or Path(source).is_absolute()
+        or re.match(r'^[A-Za-z]:[/\\]', source) is not None  # Windows absolute path
+    )
+
+
+def _extract_local_name(source: str) -> str:
+    """Extract the directory name from a local path."""
+    # Handle Windows paths on non-Windows systems
+    if re.match(r'^[A-Za-z]:[/\\]', source):
+        return source.replace('\\', '/').split('/')[-1]
+    return Path(source).expanduser().name
+
+
+def _parse_github_source(source: str) -> SourceSpec:
+    """Parse a GitHub source specification."""
+    github_match = re.match(r'^github:([^/]+)/([^@/]+)(?:@(.+))?$', source)
+    if not github_match:
         msg = f'Invalid source format: {source}'
         raise ValueError(msg)
 
-    # Local path format: starts with ./ or / or ~
-    if source.startswith(('./', '/', '~')):
-        path = Path(source).expanduser()
-        return SourceSpec(
-            source_type='local',
-            name=path.name,
-        )
+    org, repo, version = github_match.groups()
+    # Validate that org and repo are not empty
+    if not org.strip() or not repo.strip():
+        msg = f'Invalid source format: {source}'
+        raise ValueError(msg)
 
-    # Package format: package-name[@version]
+    return SourceSpec(
+        source_type='github',
+        name=repo.strip(),
+        org=org.strip(),
+        version=version.strip() if version else None,
+    )
+
+
+def _parse_package_source(source: str) -> SourceSpec:
+    """Parse a package source specification."""
     package_match = re.match(r'^([^@]+)(?:@(.+))?$', source)
-    if package_match:
-        name, version = package_match.groups()
-        return SourceSpec(
-            source_type='package',
-            name=name,
-            version=version,
-        )
+    if not package_match:
+        msg = f'Invalid source format: {source}'
+        raise ValueError(msg)
 
-    msg = f'Invalid source format: {source}'
-    raise ValueError(msg)
+    name, version = package_match.groups()
+    return SourceSpec(
+        source_type='package',
+        name=name,
+        version=version,
+    )
 
 
 def build_uv_install_spec(spec: SourceSpec) -> str:

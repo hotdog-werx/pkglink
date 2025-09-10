@@ -66,6 +66,11 @@ class TestParseSource:
                 expected_name='path',
             ),
             ParseTestCase(
+                source='C:\\\\Users\\\\test\\\\fake_toolbelt',
+                expected_type='local',
+                expected_name='fake_toolbelt',
+            ),
+            ParseTestCase(
                 source='mypackage',
                 expected_type='package',
                 expected_name='mypackage',
