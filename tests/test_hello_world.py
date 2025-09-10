@@ -1,7 +1,7 @@
 """Basic integration tests for pkglink."""
 
 from pkglink import __version__
-from pkglink.cli.main import create_parser
+from pkglink.parsing import create_parser
 
 
 def test_version_import() -> None:

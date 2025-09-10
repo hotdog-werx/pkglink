@@ -4,8 +4,12 @@ from dataclasses import dataclass
 
 import pytest
 
-from pkglink.models import SourceSpec
-from pkglink.parsing import build_uv_install_spec, parse_source
+from pkglink.models import CliArgs, SourceSpec
+from pkglink.parsing import (
+    build_uv_install_spec,
+    determine_install_spec_and_module,
+    parse_source,
+)
 
 
 @dataclass
@@ -90,12 +94,77 @@ class TestParseSource:
             'github:',
             'github:org/',
             'github:/repo',
+            'github:org/repo/',  # Extra slash
+            'github:/org/repo',  # Leading slash
+            'github:org/repo/extra',  # Extra path component
+            '@version',  # Invalid format starting with @
+            'github: /repo',  # Empty org after stripping
         ],
     )
     def test_parse_source_invalid(self, invalid_source: str) -> None:
         """Test parsing invalid source specifications."""
         with pytest.raises(ValueError, match='Invalid source format'):
             parse_source(invalid_source)
+
+
+class TestDetermineInstallSpecAndModule:
+    """Tests for determine_install_spec_and_module function."""
+
+    def test_without_from_option(self) -> None:
+        """Test parsing without --from option."""
+        args = CliArgs(
+            source='mypackage',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name=None,
+        )
+
+        install_spec, module_name = determine_install_spec_and_module(args)
+
+        assert install_spec.source_type == 'package'
+        assert install_spec.name == 'mypackage'
+        assert module_name == 'mypackage'
+
+    def test_with_from_option(self) -> None:
+        """Test parsing with --from option."""
+        args = CliArgs(
+            source='mymodule',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name=None,
+            from_package='mypackage@1.0.0',
+        )
+
+        install_spec, module_name = determine_install_spec_and_module(args)
+
+        assert install_spec.source_type == 'package'
+        assert install_spec.name == 'mypackage'
+        assert install_spec.version == '1.0.0'
+        assert module_name == 'mymodule'
+
+    def test_with_from_option_github(self) -> None:
+        """Test parsing with --from option using GitHub source."""
+        args = CliArgs(
+            source='mymodule',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name=None,
+            from_package='github:myorg/myrepo@v1.0.0',
+        )
+
+        install_spec, module_name = determine_install_spec_and_module(args)
+
+        assert install_spec.source_type == 'github'
+        assert install_spec.name == 'myrepo'
+        assert install_spec.org == 'myorg'
+        assert install_spec.version == 'v1.0.0'
+        assert module_name == 'mymodule'
 
 
 class TestBuildUVInstallSpec:

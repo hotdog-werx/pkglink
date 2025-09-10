@@ -12,6 +12,7 @@ from pkglink.symlinks import (
     create_symlink,
     is_managed_link,
     list_managed_links,
+    remove_target,
     supports_symlinks,
 )
 
@@ -57,6 +58,54 @@ class TestCreateSymlink:
             assert target.exists()
             assert isinstance(result, bool)
 
+    def test_create_symlink_fallback_copy(self, mocker: MockerFixture) -> None:
+        """Test fallback to copy when symlinks are not supported."""
+        # Mock supports_symlinks to return False
+        mocker.patch('pkglink.symlinks.supports_symlinks', return_value=False)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / 'source'
+            target = temp_path / 'target'
+
+            source.mkdir()
+            (source / 'test_file.txt').write_text('test content')
+
+            result = create_symlink(source, target)
+
+            # Should return False (indicating copy was used)
+            assert result is False
+            assert target.exists()
+            assert target.is_dir()
+            assert not target.is_symlink()
+            # Check that content was copied
+            assert (target / 'test_file.txt').read_text() == 'test content'
+
+    def test_create_symlink_fallback_copy_file(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test fallback to copy for a file when symlinks are not supported."""
+        # Mock supports_symlinks to return False
+        mocker.patch('pkglink.symlinks.supports_symlinks', return_value=False)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / 'source.txt'
+            target = temp_path / 'target.txt'
+
+            source.write_text('test content')
+
+            result = create_symlink(source, target)
+
+            # Should return False (indicating copy was used)
+            assert result is False
+            assert target.exists()
+            assert target.is_file()
+            assert not target.is_symlink()
+            # Check that content was copied
+            assert target.read_text() == 'test content'
+
     def test_create_symlink_source_not_exists(self) -> None:
         """Test error when source doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -82,6 +131,58 @@ class TestCreateSymlink:
 
             with pytest.raises(FileExistsError, match='Target already exists'):
                 create_symlink(source, target)
+
+
+class TestRemoveTarget:
+    """Tests for remove_target function."""
+
+    def test_remove_target_symlink(self) -> None:
+        """Test removing a symlink."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / 'source'
+            target = temp_path / 'target'
+
+            source.mkdir()
+            target.symlink_to(source)
+
+            assert target.exists()
+            assert target.is_symlink()
+
+            remove_target(target)
+
+            assert not target.exists()
+
+    def test_remove_target_directory(self) -> None:
+        """Test removing a directory."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            target = temp_path / 'target'
+
+            target.mkdir()
+            (target / 'file.txt').write_text('content')
+
+            assert target.exists()
+            assert target.is_dir()
+
+            remove_target(target)
+
+            assert not target.exists()
+
+    def test_remove_target_file(self) -> None:
+        """Test removing a file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            target = temp_path / 'target.txt'
+
+            target.write_text('content')
+
+            assert target.exists()
+            assert target.is_file()
+
+            remove_target(target)
+
+            assert not target.exists()
 
 
 class TestIsManagedLink:

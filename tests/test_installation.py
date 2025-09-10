@@ -1,5 +1,6 @@
 """Tests for pkglink installation functionality."""
 
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -8,11 +9,15 @@ from pytest_mock import MockerFixture
 
 from pkglink import installation
 from pkglink.installation import (
+    find_by_prefix,
+    find_by_similarity,
+    find_by_suffix,
     find_exact_match,
     find_first_directory,
     find_package_root,
     find_python_package,
     find_with_resources,
+    install_with_uvx,
     resolve_source_path,
 )
 from pkglink.models import SourceSpec
@@ -37,6 +42,73 @@ class TestPackageRootFinding:
             temp_path = Path(temp_dir)
 
             result = find_exact_match(temp_path, 'nonexistent')
+            assert result is None
+
+    def test_find_by_prefix_exists(self) -> None:
+        """Test finding directory by prefix."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            package_dir = temp_path / 'mypackage-main'
+            package_dir.mkdir()
+
+            result = find_by_prefix(temp_path, 'mypackage')
+            assert result == package_dir
+
+    def test_find_by_prefix_not_exists(self) -> None:
+        """Test finding directory by prefix when none match."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / 'otherpackage').mkdir()
+
+            result = find_by_prefix(temp_path, 'mypackage')
+            assert result is None
+
+    def test_find_by_suffix_exists(self) -> None:
+        """Test finding directory by suffix."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            package_dir = temp_path / 'main-mypackage'
+            package_dir.mkdir()
+
+            result = find_by_suffix(temp_path, 'mypackage')
+            assert result == package_dir
+
+    def test_find_by_suffix_not_exists(self) -> None:
+        """Test finding directory by suffix when none match."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / 'otherpackage').mkdir()
+
+            result = find_by_suffix(temp_path, 'mypackage')
+            assert result is None
+
+    def test_find_by_similarity_high_match(self) -> None:
+        """Test finding directory by similarity with high match."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            package_dir = temp_path / 'my-package'
+            package_dir.mkdir()
+
+            result = find_by_similarity(temp_path, 'mypackage')
+            assert result == package_dir
+
+    def test_find_by_similarity_low_match(self) -> None:
+        """Test finding directory by similarity with low match."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / 'completely-different').mkdir()
+
+            result = find_by_similarity(temp_path, 'mypackage')
+            assert result is None
+
+    def test_find_by_similarity_below_threshold(self) -> None:
+        """Test finding directory by similarity below threshold."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            # Create a directory with very low similarity
+            (temp_path / 'xyz').mkdir()
+
+            result = find_by_similarity(temp_path, 'mypackage')
             assert result is None
 
     def test_find_python_package(self) -> None:
@@ -92,17 +164,35 @@ class TestPackageRootFinding:
             (temp_path / 'file.txt').touch()
 
             with pytest.raises(
-                FileNotFoundError,
-                match='Could not locate package',
+                RuntimeError,
+                match='Package root anything not found in',
             ):
                 find_package_root(temp_path, 'anything')
+
+    def test_find_package_root_error_listing_directory(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test error handling when listing directory fails."""
+        # Mock iterdir to raise an exception
+        mock_path = mocker.Mock()
+        mock_path.iterdir.side_effect = OSError('Permission denied')
+        mock_path.exists.return_value = True
+
+        mocker.patch('pathlib.Path', return_value=mock_path)
+
+        with pytest.raises(
+            RuntimeError,
+            match='Error accessing install directory',
+        ):
+            find_package_root(mock_path, 'anything')
 
 
 class TestResolveSourcePath:
     """Tests for resolve_source_path function."""
 
-    def test_resolve_local_source(self) -> None:
-        """Test resolving local source path."""
+    def test_resolve_local_source_exists(self) -> None:
+        """Test resolving local source path when it exists."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             local_spec = SourceSpec(source_type='local', name=str(temp_path))
@@ -110,15 +200,29 @@ class TestResolveSourcePath:
             result = resolve_source_path(local_spec)
             assert result == temp_path
 
-    def test_resolve_remote_source(self, mocker: MockerFixture) -> None:
-        """Test resolving remote source path."""
-        # Mock the UV installation and package finding
-        fake_install_dir = Path('/fake/install/dir')
-        fake_package_root = Path('/fake/package/root')
+    def test_resolve_local_source_not_exists(self) -> None:
+        """Test resolving local source path when it doesn't exist."""
+        nonexistent_path = '/nonexistent/path'
+        local_spec = SourceSpec(source_type='local', name=nonexistent_path)
 
-        mock_install_with_uv = mocker.patch.object(
+        with pytest.raises(RuntimeError, match='Local path does not exist'):
+            resolve_source_path(local_spec)
+
+    def test_resolve_remote_source(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test resolving remote source path."""
+        # Mock the uvx installation and package finding
+        fake_install_dir = tmp_path / 'mock' / 'install' / 'dir'
+        fake_install_dir.mkdir(parents=True, exist_ok=True)
+        fake_package_root = tmp_path / 'mock' / 'package' / 'root'
+        fake_package_root.mkdir(parents=True, exist_ok=True)
+
+        mock_install_with_uvx = mocker.patch.object(
             installation,
-            'install_with_uv',
+            'install_with_uvx',
             return_value=fake_install_dir,
         )
         mock_find_package_root = mocker.patch.object(
@@ -136,7 +240,7 @@ class TestResolveSourcePath:
         result = resolve_source_path(github_spec)
 
         assert result == fake_package_root
-        mock_install_with_uv.assert_called_once_with(github_spec)
+        mock_install_with_uvx.assert_called_once_with(github_spec)
         mock_find_package_root.assert_called_once_with(
             fake_install_dir,
             'myrepo',
@@ -144,16 +248,19 @@ class TestResolveSourcePath:
 
     def test_resolve_remote_source_with_different_module(
         self,
+        tmp_path: Path,
         mocker: MockerFixture,
     ) -> None:
         """Test resolving remote source path with different module name."""
-        # Mock the UV installation and package finding
-        fake_install_dir = Path('/fake/install/dir')
-        fake_package_root = Path('/fake/package/root')
+        # Mock the uvx installation and package finding
+        fake_install_dir = tmp_path / 'mock' / 'install' / 'dir'
+        fake_install_dir.mkdir(parents=True, exist_ok=True)
+        fake_package_root = tmp_path / 'mock' / 'package' / 'root'
+        fake_package_root.mkdir(parents=True, exist_ok=True)
 
-        mock_install_with_uv = mocker.patch.object(
+        mock_install_with_uvx = mocker.patch.object(
             installation,
-            'install_with_uv',
+            'install_with_uvx',
             return_value=fake_install_dir,
         )
         mock_find_package_root = mocker.patch.object(
@@ -164,15 +271,90 @@ class TestResolveSourcePath:
 
         # Install package 'tbelt' but look for module 'toolbelt'
         install_spec = SourceSpec(
-            source_type='pypi',
+            source_type='package',
             name='tbelt',
         )
 
         result = resolve_source_path(install_spec, module_name='toolbelt')
 
         assert result == fake_package_root
-        mock_install_with_uv.assert_called_once_with(install_spec)
+        mock_install_with_uvx.assert_called_once_with(install_spec)
         mock_find_package_root.assert_called_once_with(
             fake_install_dir,
             'toolbelt',  # Should look for 'toolbelt', not 'tbelt'
         )
+
+
+class TestInstallWithUvx:
+    """Tests for install_with_uvx function."""
+
+    def test_install_with_uvx_cached(self, mocker: MockerFixture) -> None:
+        """Test install_with_uvx when package is already cached."""
+        with tempfile.TemporaryDirectory() as temp_home:
+            temp_home_path = Path(temp_home)
+            mocker.patch('pathlib.Path.home', return_value=temp_home_path)
+            mocker.patch.object(Path, 'exists', return_value=True)
+
+            spec = SourceSpec(source_type='github', name='repo', org='org')
+
+            result = install_with_uvx(spec)
+
+            # Should return the cached directory
+            assert str(result).startswith(
+                str(temp_home_path / '.cache' / 'pkglink'),
+            )
+
+    def test_install_with_uvx_not_cached(self, mocker: MockerFixture) -> None:
+        """Test install_with_uvx when package is not cached."""
+        with tempfile.TemporaryDirectory() as temp_home:
+            temp_home_path = Path(temp_home)
+            # Mock subprocess.run to simulate successful uvx execution
+            mock_run = mocker.patch('subprocess.run')
+            mock_run.return_value = mocker.Mock(
+                stdout=str(temp_home_path / 'site-packages') + '\n',
+                stderr='',
+            )
+
+            # Mock the cache directory to not exist initially
+            mocker.patch.object(Path, 'exists', return_value=False)
+            mocker.patch('pathlib.Path.home', return_value=temp_home_path)
+
+            # Mock shutil.copytree
+            mocker.patch('shutil.copytree')
+
+            spec = SourceSpec(source_type='github', name='repo', org='org')
+
+            result = install_with_uvx(spec)
+
+            # Should have called subprocess.run
+            mock_run.assert_called_once()
+            assert 'uvx' in str(mock_run.call_args[0][0])
+
+            # Should return the cache directory
+            assert str(result).startswith(
+                str(temp_home_path / '.cache' / 'pkglink'),
+            )
+
+    def test_install_with_uvx_command_failure(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test install_with_uvx when uvx command fails."""
+        with tempfile.TemporaryDirectory() as temp_home:
+            temp_home_path = Path(temp_home)
+            mocker.patch('pathlib.Path.home', return_value=temp_home_path)
+
+            # Mock subprocess.run to raise CalledProcessError
+            mock_run = mocker.patch('subprocess.run')
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1,
+                'uvx',
+                stderr='uvx failed',
+            )
+
+            mocker.patch.object(Path, 'exists', return_value=False)
+
+            spec = SourceSpec(source_type='github', name='repo', org='org')
+
+            with pytest.raises(RuntimeError, match='Failed to install'):
+                install_with_uvx(spec)
