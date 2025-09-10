@@ -76,15 +76,17 @@ def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
     )
 
     if is_symlink:
-        sys.stdout.write(
-            f'Created symlink: {target_path} -> {operation.full_source_path}\n',
+        logger.info(
+            'symlink_created_successfully',
+            target=str(target_path),
+            source=str(operation.full_source_path),
         )
-        logger.info('symlink_created_successfully')
     else:
-        sys.stdout.write(
-            f'Created copy: {target_path} (symlinks not supported)\n',
+        logger.info(
+            'copy_created_successfully',
+            target=str(target_path),
+            reason='symlinks not supported',
         )
-        logger.info('copy_created_successfully')
 
 
 def main() -> None:
@@ -105,6 +107,18 @@ def main() -> None:
 
     try:
         install_spec, module_name = determine_install_spec_and_module(args)
+
+        # Check if target already exists first (before any installation work)
+        symlink_name = args.symlink_name or f'.{install_spec.name}'
+        target_path = Path.cwd() / symlink_name
+        
+        if target_path.exists() and not args.force:
+            logger.info(
+                'target_already_exists_skipping',
+                target=str(target_path),
+                symlink_name=symlink_name,
+            )
+            return
 
         # Handle dry-run early
         handle_dry_run(args, install_spec, module_name)
@@ -152,6 +166,7 @@ def main() -> None:
         execute_symlink_operation(args, operation)
 
     except Exception as e:
+        # Log with safe error representation for YAML serialization
         logger.exception('cli_operation_failed', error=str(e))
         sys.stderr.write(f'Error: {e}\n')
         sys.exit(1)

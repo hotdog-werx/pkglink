@@ -131,17 +131,14 @@ def find_first_directory(install_dir: Path) -> Path | None:
 
 def find_package_root(install_dir: Path, expected_name: str) -> Path:
     """Find the actual package directory after installation using multiple strategies."""
-    logger.info('Looking for package root %s in %s', expected_name, install_dir)
+    logger.info('looking_for_package_root', expected=expected_name, install_dir=str(install_dir))
 
     # List all items for debugging
     try:
         items = list(install_dir.iterdir())
-        logger.info(
-            'Available items in install directory: %s',
-            [item.name for item in items],
-        )
+        logger.info('available_items_in_install_directory', items=[item.name for item in items])
     except OSError as e:
-        logger.exception('Error listing install directory')
+        logger.exception('error_listing_install_directory', install_dir=str(install_dir), error=str(e))
         msg = f'Error accessing install directory {install_dir}: {e}'
         raise RuntimeError(msg) from e
 
@@ -167,18 +164,14 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
             result = strategy(install_dir, expected_name)
 
         if result:
-            logger.info(
-                'Found package root using %s: %s',
-                strategy.__name__,
-                result,
-            )
+            logger.info('package_root_found', strategy=strategy.__name__, path=str(result))
             return result
 
     # If all strategies fail, provide detailed error
-    logger.error('Package root %s not found in %s', expected_name, install_dir)
+    logger.error('package_root_not_found', expected=expected_name, install_dir=str(install_dir))
     logger.error(
-        'Available directories: %s',
-        [
+        'available_directories',
+        directories=[
             item.name
             for item in items
             if item.is_dir() and not item.name.startswith('.') and not item.name.endswith('.dist-info')
@@ -193,60 +186,55 @@ def resolve_source_path(
     module_name: str | None = None,
 ) -> Path:
     """Resolve source specification to an actual filesystem path."""
-    logger.info(
-        'Resolving source path for spec: %s, module: %s',
-        spec,
-        module_name,
-    )
+    logger.info('resolving_source_path', spec=spec.model_dump(), module=module_name)
 
     if spec.source_type == 'local':
         # For local sources, return the path directly
-        logger.info('Local source detected: %s', spec.name)
+        logger.info('local_source_detected', name=spec.name)
         path = Path(spec.name).resolve()
         if not path.exists():
             msg = f'Local path does not exist: {path}'
             raise RuntimeError(msg)
-        logger.info('Resolved local path: %s', path)
+        logger.info('resolved_local_path', path=str(path))
         return path
 
     # For remote sources, try uvx first, then fallback to uv
     target_module = module_name or spec.name
-    logger.info('Target module to find: %s', target_module)
+    logger.info('target_module_to_find', module=target_module)
 
     try:
         # Try uvx approach first
-        logger.info('Attempting uvx installation')
+        logger.info('attempting_uvx_installation')
         install_dir = install_with_uvx(spec)
     except Exception as e:
-        logger.warning('uvx installation failed, trying fallback: %s', e)
+        logger.warning('uvx_installation_failed', error=str(e))
 
         try:
             # Fallback to uv pip install --target
-            logger.info('Attempting fallback uv installation')
+            logger.info('attempting_fallback_uv_installation')
             install_dir = install_with_uv(spec)
         except Exception as fallback_error:
-            logger.exception('Both uvx and uv installation methods failed')
+            logger.exception('both_installation_methods_failed', 
+                           uvx_error=str(e), 
+                           uv_error=str(fallback_error))
             msg = f'Failed to install {spec}: uvx error: {e}, uv error: {fallback_error}'
             raise RuntimeError(msg) from fallback_error
         else:
             package_root = find_package_root(install_dir, target_module)
-            logger.info(
-                'Successfully resolved via uv fallback: %s',
-                package_root,
-            )
+            logger.info('successfully_resolved_via_uv_fallback', path=str(package_root))
             return package_root
     else:
         package_root = find_package_root(install_dir, target_module)
-        logger.info('Successfully resolved via uvx: %s', package_root)
+        logger.info('successfully_resolved_via_uvx', path=str(package_root))
         return package_root
 
 
 def install_with_uvx(spec: SourceSpec) -> Path:
     """Install package using uvx, then copy to a predictable location."""
-    logger.info('Installing %s using uvx', spec.name)
+    logger.info('installing_using_uvx', package=spec.name)
 
     install_spec = build_uv_install_spec(spec)
-    logger.debug('Install spec: %s', install_spec)
+    logger.debug('install_spec', spec=install_spec, _verbose_source_spec=spec.model_dump())
 
     # Create a predictable cache directory that we control
     cache_base = Path.home() / '.cache' / 'pkglink'
@@ -259,7 +247,7 @@ def install_with_uvx(spec: SourceSpec) -> Path:
 
     # If already cached, return the existing directory
     if cache_dir.exists():
-        logger.info('Using cached installation: %s', cache_dir)
+        logger.info('using_cached_installation', cache_dir=str(cache_dir))
         return cache_dir
 
     try:
@@ -272,7 +260,7 @@ def install_with_uvx(spec: SourceSpec) -> Path:
             '-c',
             'import site; print(site.getsitepackages()[0])',
         ]
-        logger.debug('Running uvx command: %s', ' '.join(cmd))
+        logger.debug('running_uvx_command', _debug_command=' '.join(cmd))
 
         result = subprocess.run(
             cmd,
@@ -283,11 +271,11 @@ def install_with_uvx(spec: SourceSpec) -> Path:
 
         # Get the site-packages directory from uvx's environment
         site_packages = Path(result.stdout.strip())
-        logger.info('uvx installed to site-packages: %s', site_packages)
+        logger.info('uvx_installed_to_site_packages', site_packages=str(site_packages))
 
         # Copy the site-packages to our cache directory
         shutil.copytree(site_packages, cache_dir)
-        logger.info('Cached uvx installation to: %s', cache_dir)
+        logger.info('cached_uvx_installation', cache_dir=str(cache_dir))
 
     except subprocess.CalledProcessError as e:
         logger.exception('uvx installation failed')
@@ -299,17 +287,17 @@ def install_with_uvx(spec: SourceSpec) -> Path:
 
 def install_with_uv(spec: SourceSpec) -> Path:
     """Install package using uv pip install --target."""
-    logger.info('Installing %s using uv fallback approach', spec.name)
+    logger.info('installing_using_uv_fallback', package=spec.name)
 
     # Use a temporary directory for installation
     temp_dir = Path(tempfile.mkdtemp(prefix='pkglink_uv_'))
 
     try:
         install_spec = build_uv_install_spec(spec)
-        logger.debug('Install spec: %s', install_spec)
+        logger.debug('install_spec', spec=install_spec)
 
         cmd = ['uv', 'pip', 'install', '--target', str(temp_dir), install_spec]
-        logger.debug('Running command: %s', ' '.join(cmd))
+        logger.debug('running_uv_command', _debug_command=' '.join(cmd))
 
         result = subprocess.run(
             cmd,
@@ -317,7 +305,7 @@ def install_with_uv(spec: SourceSpec) -> Path:
             text=True,
             check=True,
         )
-        logger.debug('Installation successful, output: %s', result.stdout)
+        logger.debug('installation_successful', _debug_output=result.stdout)
     except subprocess.CalledProcessError as e:
         logger.exception('uv installation failed')
         shutil.rmtree(temp_dir, ignore_errors=True)
