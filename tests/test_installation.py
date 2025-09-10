@@ -198,7 +198,7 @@ class TestResolveSourcePath:
             local_spec = SourceSpec(source_type='local', name=str(temp_path))
 
             result = resolve_source_path(local_spec)
-            assert result == temp_path
+            assert result == temp_path.resolve()
 
     def test_resolve_local_source_not_exists(self) -> None:
         """Test resolving local source path when it doesn't exist."""
