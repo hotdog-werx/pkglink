@@ -25,7 +25,7 @@ def handle_dry_run(
         return
 
     logger.info(
-        'Dry run mode',
+        'dry_run_mode',
         install_spec=install_spec.model_dump(),
         module_name=module_name,
         directory=args.directory,
@@ -37,13 +37,13 @@ def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
     """Execute the actual symlink creation operation."""
     # Check if source directory exists
     logger.info(
-        'Checking source directory',
+        'checking_source_directory',
         path=str(operation.full_source_path),
     )
 
     if not operation.full_source_path.exists():
         logger.error(
-            'Source directory not found',
+            'source_directory_not_found',
             path=str(operation.full_source_path),
         )
 
@@ -51,7 +51,7 @@ def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
         parent_dir = operation.full_source_path.parent
         if parent_dir.exists():
             logger.info(
-                'Parent directory contents',
+                'parent_directory_contents',
                 parent=str(parent_dir),
                 contents=[str(p) for p in parent_dir.iterdir()],
             )
@@ -64,7 +64,7 @@ def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
     # Create the symlink
     target_path = Path.cwd() / operation.symlink_name
     logger.info(
-        'Creating symlink',
+        'creating_symlink',
         target=str(target_path),
         source=str(operation.full_source_path),
     )
@@ -79,12 +79,12 @@ def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
         sys.stdout.write(
             f'Created symlink: {target_path} -> {operation.full_source_path}\n',
         )
-        logger.info('Successfully created symlink')
+        logger.info('symlink_created_successfully')
     else:
         sys.stdout.write(
             f'Created copy: {target_path} (symlinks not supported)\n',
         )
-        logger.info('Successfully created copy (symlinks not supported)')
+        logger.info('copy_created_successfully')
 
 
 def main() -> None:
@@ -94,7 +94,7 @@ def main() -> None:
     # Configure logging first
     configure_logging(verbose=args.verbose)
 
-    logger.info('Starting pkglink', args=args.model_dump())
+    logger.info('starting_pkglink', args=args.model_dump())
 
     try:
         install_spec, module_name = determine_install_spec_and_module(args)
@@ -106,13 +106,13 @@ def main() -> None:
 
         # Resolve the source path using install_spec but look for module_name
         logger.info(
-            'Resolving source path',
+            'resolving_source_path',
             install_spec=install_spec.model_dump(),
             module=module_name,
         )
 
         source_path = resolve_source_path(install_spec, module_name)
-        logger.info('Resolved source path', path=str(source_path))
+        logger.info('resolved_source_path', path=str(source_path))
 
         # Create link target
         target = LinkTarget(
@@ -120,7 +120,7 @@ def main() -> None:
             target_directory=args.directory,
             symlink_name=args.symlink_name,
         )
-        logger.info('Created link target', target=target.model_dump())
+        logger.info('created_link_target', target=target.model_dump())
 
         # Create link operation
         operation = LinkOperation(
@@ -129,12 +129,12 @@ def main() -> None:
             force=args.force,
             dry_run=args.dry_run,
         )
-        logger.info('Created link operation', operation=operation.model_dump())
+        logger.info('created_link_operation', operation=operation.model_dump())
 
         execute_symlink_operation(args, operation)
 
     except Exception as e:
-        logger.exception('CLI operation failed', error=str(e))
+        logger.exception('cli_operation_failed', error=str(e))
         sys.stderr.write(f'Error: {e}\n')
         sys.exit(1)
 

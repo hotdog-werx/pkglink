@@ -19,37 +19,37 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
 
     Returns True if symlink was created, False if fallback copy was used.
     """
-    logger.info('Creating symlink', target=str(target), source=str(source), force=force)
+    logger.info('creating_symlink', target=str(target), source=str(source), force=force)
 
     if target.exists() and not force:
-        logger.error('Target already exists', target=str(target), force=force)
+        logger.error('target_already_exists', target=str(target), force=force)
         msg = f'Target already exists: {target}'
         raise FileExistsError(msg)
 
     if target.exists() and force:
-        logger.info('Removing existing target', target=str(target))
+        logger.info('removing_existing_target', target=str(target))
         remove_target(target)
 
     if not source.exists():
-        logger.error('Source does not exist', source=str(source))
+        logger.error('source_does_not_exist', source=str(source))
         msg = f'Source does not exist: {source}'
         raise FileNotFoundError(msg)
 
     if supports_symlinks():
-        logger.info('Creating symlink using os.symlink')
+        logger.info('creating_symlink_using_os_symlink')
         target.symlink_to(source, target_is_directory=source.is_dir())
-        logger.info('Successfully created symlink')
+        logger.info('symlink_created_successfully')
         return True
 
     # Fallback to copying
-    logger.info('Symlinks not supported, falling back to copy')
+    logger.info('symlinks_not_supported_falling_back_to_copy')
     if source.is_dir():
-        logger.info('Copying directory tree')
+        logger.info('copying_directory_tree')
         shutil.copytree(source, target)
     else:
-        logger.info('Copying file')
+        logger.info('copying_file')
         shutil.copy2(source, target)
-    logger.info('Successfully created copy')
+    logger.info('copy_created_successfully')
     return False
 
 

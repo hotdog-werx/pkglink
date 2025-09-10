@@ -72,20 +72,20 @@ def determine_install_spec_and_module(args: CliArgs) -> tuple[SourceSpec, str]:
     """Determine what to install and which module to look for based on CLI args."""
     if args.from_package:
         logger.info(
-            'Using --from option',
+            'using_from_option',
             install_package=args.from_package,
             module_name=args.source,
         )
         install_spec = parse_source(args.from_package)
-        logger.info('Parsed install spec', install_spec=install_spec.model_dump())
+        logger.info('parsed_install_spec', install_spec=install_spec.model_dump())
 
         module_name = args.source
-        logger.info('Will look for module', module=module_name)
+        logger.info('looking_for_module', module=module_name)
     else:
-        logger.info('Parsing source specification', source=args.source)
+        logger.info('parsing_source_specification', source=args.source)
         install_spec = parse_source(args.source)
         module_name = install_spec.name
-        logger.info('Parsed source spec', source_spec=install_spec.model_dump())
+        logger.info('parsed_source_spec', source_spec=install_spec.model_dump())
 
     return install_spec, module_name
 
