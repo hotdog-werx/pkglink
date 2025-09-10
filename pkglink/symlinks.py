@@ -26,14 +26,14 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
         _verbose_force=force,
     )
 
-    if target.exists() and not force:
-        logger.error('target_already_exists', target=str(target))
-        msg = f'Target already exists: {target}'
-        raise FileExistsError(msg)
-
-    if target.exists() and force:
-        logger.info('removing_existing_target', target=str(target))
-        remove_target(target)
+    if target.exists():
+        if force:
+            logger.info('removing_existing_target', target=str(target))
+            remove_target(target)
+        else:
+            logger.error('target_already_exists', target=str(target))
+            msg = f'Target already exists: {target}'
+            raise FileExistsError(msg)
 
     if not source.exists():
         logger.error('source_does_not_exist', source=str(source))

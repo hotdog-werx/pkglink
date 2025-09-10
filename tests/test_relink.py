@@ -288,7 +288,10 @@ class TestCheckTargetExists:
 
         # Create symlink
         symlink_path = tmp_path / '.mypackage'
-        symlink_path.symlink_to(source_path / 'resources', target_is_directory=True)
+        symlink_path.symlink_to(
+            source_path / 'resources',
+            target_is_directory=True,
+        )
 
         # Mock resolve() to raise an OSError
         mock_resolve = mocker.patch.object(Path, 'resolve')
@@ -391,7 +394,10 @@ class TestIsSymlinkPointingToCorrectTarget:
         symlink_path = tmp_path / 'link'
         symlink_path.symlink_to(target_dir, target_is_directory=True)
 
-        result = _is_symlink_pointing_to_correct_target(symlink_path, target_dir)
+        result = _is_symlink_pointing_to_correct_target(
+            symlink_path,
+            target_dir,
+        )
         assert result is True
 
     def test_symlink_points_to_wrong_target(self, tmp_path: Path) -> None:
@@ -406,7 +412,10 @@ class TestIsSymlinkPointingToCorrectTarget:
         symlink_path = tmp_path / 'link'
         symlink_path.symlink_to(wrong_target, target_is_directory=True)
 
-        result = _is_symlink_pointing_to_correct_target(symlink_path, correct_target)
+        result = _is_symlink_pointing_to_correct_target(
+            symlink_path,
+            correct_target,
+        )
         assert result is False
 
     def test_target_is_not_symlink(self, tmp_path: Path) -> None:
@@ -418,5 +427,8 @@ class TestIsSymlinkPointingToCorrectTarget:
         expected_target = tmp_path / 'expected'
         expected_target.mkdir()
 
-        result = _is_symlink_pointing_to_correct_target(target_path, expected_target)
+        result = _is_symlink_pointing_to_correct_target(
+            target_path,
+            expected_target,
+        )
         assert result is False

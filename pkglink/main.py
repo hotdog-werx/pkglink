@@ -174,10 +174,13 @@ def create_symlink_with_logging(
         source=str(operation.full_source_path),
     )
 
+    # If target exists but we got here, it means check_target_exists returned False,
+    # indicating the target is incorrect and should be replaced
+    force_removal = args.force or target_path.exists()
     create_symlink(
         operation.full_source_path,
         target_path,
-        force=args.force,
+        force=force_removal,
     )
 
 
