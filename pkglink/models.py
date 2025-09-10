@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 
 class SourceSpec(BaseModel):
@@ -15,6 +15,11 @@ class SourceSpec(BaseModel):
 
 class LinkTarget(BaseModel):
     """Represents the target for a symlink operation."""
+
+    model_config = ConfigDict(
+        # Serialize Path objects as strings
+        json_encoders={Path: str},
+    )
 
     source_path: Path
     target_directory: Annotated[
@@ -31,6 +36,11 @@ class LinkTarget(BaseModel):
 
 class LinkOperation(BaseModel):
     """Represents a complete link operation."""
+
+    model_config = ConfigDict(
+        # Serialize Path objects as strings
+        json_encoders={Path: str},
+    )
 
     spec: SourceSpec
     target: LinkTarget

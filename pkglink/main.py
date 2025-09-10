@@ -36,7 +36,7 @@ def handle_dry_run(
 def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
     """Execute the actual symlink creation operation."""
     # Check if source directory exists
-    logger.info(
+    logger.debug(
         'checking_source_directory',
         path=str(operation.full_source_path),
     )
@@ -50,7 +50,7 @@ def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
         # Log contents of parent directory for debugging
         parent_dir = operation.full_source_path.parent
         if parent_dir.exists():
-            logger.info(
+            logger.debug(
                 'parent_directory_contents',
                 parent=str(parent_dir),
                 contents=[str(p) for p in parent_dir.iterdir()],
@@ -63,30 +63,17 @@ def execute_symlink_operation(args: CliArgs, operation: LinkOperation) -> None:
 
     # Create the symlink
     target_path = Path.cwd() / operation.symlink_name
-    logger.info(
+    logger.debug(
         'creating_symlink',
         target=str(target_path),
         source=str(operation.full_source_path),
     )
 
-    is_symlink = create_symlink(
+    create_symlink(
         operation.full_source_path,
         target_path,
         force=args.force,
     )
-
-    if is_symlink:
-        logger.info(
-            'symlink_created_successfully',
-            target=str(target_path),
-            source=str(operation.full_source_path),
-        )
-    else:
-        logger.info(
-            'copy_created_successfully',
-            target=str(target_path),
-            reason='symlinks not supported',
-        )
 
 
 def main() -> None:
@@ -111,7 +98,7 @@ def main() -> None:
         # Check if target already exists first (before any installation work)
         symlink_name = args.symlink_name or f'.{install_spec.name}'
         target_path = Path.cwd() / symlink_name
-        
+
         if target_path.exists() and not args.force:
             logger.info(
                 'target_already_exists_skipping',
@@ -126,14 +113,14 @@ def main() -> None:
             return
 
         # Resolve the source path using install_spec but look for module_name
-        logger.info(
+        logger.debug(
             'resolving_source_path',
             module=module_name,
             _verbose_install_spec=install_spec.model_dump(),
         )
 
         source_path = resolve_source_path(install_spec, module_name)
-        logger.info('resolved_source_path', path=str(source_path))
+        logger.debug('resolved_source_path', path=str(source_path))
 
         # Create link target
         target = LinkTarget(
@@ -141,12 +128,12 @@ def main() -> None:
             target_directory=args.directory,
             symlink_name=args.symlink_name,
         )
-        logger.info(
+        logger.debug(
             'created_link_target',
             source_path=str(target.source_path),
             target_directory=target.target_directory,
             symlink_name=target.symlink_name,
-            _verbose_target=target.model_dump(),
+            _verbose_target=target.model_dump(mode='json'),
         )
 
         # Create link operation
@@ -156,11 +143,11 @@ def main() -> None:
             force=args.force,
             dry_run=args.dry_run,
         )
-        logger.info(
+        logger.debug(
             'created_link_operation',
             symlink_name=operation.symlink_name,
             full_source_path=str(operation.full_source_path),
-            _verbose_operation=operation.model_dump(),
+            _verbose_operation=operation.model_dump(mode='json'),
         )
 
         execute_symlink_operation(args, operation)

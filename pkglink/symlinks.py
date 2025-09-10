@@ -41,18 +41,18 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
         raise FileNotFoundError(msg)
 
     if supports_symlinks():
-        logger.info('creating_symlink_using_os_symlink')
+        logger.debug('creating_symlink_using_os_symlink')
         target.symlink_to(source, target_is_directory=source.is_dir())
         logger.info('symlink_created_successfully')
         return True
 
     # Fallback to copying
-    logger.info('symlinks_not_supported_falling_back_to_copy')
+    logger.debug('symlinks_not_supported_falling_back_to_copy')
     if source.is_dir():
-        logger.info('copying_directory_tree')
+        logger.debug('copying_directory_tree')
         shutil.copytree(source, target)
     else:
-        logger.info('copying_file')
+        logger.debug('copying_file')
         shutil.copy2(source, target)
     logger.info('copy_created_successfully')
     return False

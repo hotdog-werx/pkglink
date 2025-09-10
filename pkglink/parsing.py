@@ -77,7 +77,7 @@ def determine_install_spec_and_module(args: CliArgs) -> tuple[SourceSpec, str]:
             module_name=args.source,
         )
         install_spec = parse_source(args.from_package)
-        logger.info(
+        logger.debug(
             'parsed_install_spec',
             name=install_spec.name,
             source_type=install_spec.source_type,
@@ -86,12 +86,12 @@ def determine_install_spec_and_module(args: CliArgs) -> tuple[SourceSpec, str]:
         )
 
         module_name = args.source
-        logger.info('looking_for_module', module=module_name)
+        logger.debug('looking_for_module', module=module_name)
     else:
         logger.info('parsing_source_specification', source=args.source)
         install_spec = parse_source(args.source)
         module_name = install_spec.name
-        logger.info(
+        logger.debug(
             'parsed_source_spec',
             name=install_spec.name,
             source_type=install_spec.source_type,
