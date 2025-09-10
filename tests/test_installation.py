@@ -2,10 +2,11 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
+from pytest_mock import MockerFixture
 
+from pkglink import installation
 from pkglink.installation import (
     find_exact_match,
     find_first_directory,
@@ -109,20 +110,22 @@ class TestResolveSourcePath:
             result = resolve_source_path(local_spec)
             assert result == temp_path
 
-    @patch('pkglink.installation.install_with_uv')
-    @patch('pkglink.installation.find_package_root')
-    def test_resolve_remote_source(
-        self,
-        mock_find_package_root: Mock,
-        mock_install_with_uv: Mock,
-    ) -> None:
+    def test_resolve_remote_source(self, mocker: MockerFixture) -> None:
         """Test resolving remote source path."""
         # Mock the UV installation and package finding
         fake_install_dir = Path('/fake/install/dir')
         fake_package_root = Path('/fake/package/root')
 
-        mock_install_with_uv.return_value = fake_install_dir
-        mock_find_package_root.return_value = fake_package_root
+        mock_install_with_uv = mocker.patch.object(
+            installation,
+            'install_with_uv',
+            return_value=fake_install_dir,
+        )
+        mock_find_package_root = mocker.patch.object(
+            installation,
+            'find_package_root',
+            return_value=fake_package_root,
+        )
 
         github_spec = SourceSpec(
             source_type='github',

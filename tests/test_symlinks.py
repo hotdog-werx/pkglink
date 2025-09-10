@@ -3,10 +3,11 @@
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
+from pytest_mock import MockerFixture
 
+from pkglink import symlinks
 from pkglink.symlinks import (
     create_symlink,
     is_managed_link,
@@ -27,16 +28,14 @@ class SymlinkTestCase:
 class TestSupportsSymlinks:
     """Tests for supports_symlinks function."""
 
-    @patch('pkglink.symlinks.os')
-    def test_supports_symlinks_true(self, mock_os: Mock) -> None:
+    def test_supports_symlinks_true(self, mocker: MockerFixture) -> None:
         """Test that supports_symlinks returns True when os.symlink exists."""
-        mock_os.symlink = Mock()
+        mocker.patch.object(symlinks, 'hasattr', return_value=True)
         assert supports_symlinks() is True
 
-    @patch('pkglink.symlinks.os')
-    def test_supports_symlinks_false(self, mock_os: Mock) -> None:
+    def test_supports_symlinks_false(self, mocker: MockerFixture) -> None:
         """Test that supports_symlinks returns False when os.symlink doesn't exist."""
-        delattr(mock_os, 'symlink')
+        mocker.patch.object(symlinks, 'hasattr', return_value=False)
         assert supports_symlinks() is False
 
 
@@ -140,14 +139,12 @@ class TestListManagedLinks:
             result_names = {path.name for path in result}
             assert result_names == {'.managed1', '.managed2'}
 
-    def test_list_managed_links_default_cwd(self) -> None:
+    def test_list_managed_links_default_cwd(self, mocker: MockerFixture) -> None:
         """Test listing managed links with default current directory."""
-        with patch('pkglink.symlinks.Path.cwd') as mock_cwd:
-            mock_dir = Mock()
-            mock_cwd.return_value = mock_dir
-            mock_dir.iterdir.return_value = []
+        mock_dir = mocker.Mock()
+        mock_dir.iterdir.return_value = []
+        mocker.patch.object(Path, 'cwd', return_value=mock_dir)
 
-            result = list_managed_links()
+        result = list_managed_links()
 
-            mock_cwd.assert_called_once()
-            assert result == []
+        assert result == []
