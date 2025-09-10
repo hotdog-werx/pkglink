@@ -74,23 +74,30 @@ def main() -> None:
 
     # Configure logging first
     configure_logging(verbose=args.verbose)
-    
+
     logger.info('Starting pkglink with args: %s', vars(args))
 
     try:
         # Handle --from logic: install one package but look for another module
         if args.from_package:
-            logger.info('Using --from: installing %s but looking for module %s', args.from_package, args.source)
+            logger.info(
+                'Using --from: installing %s but looking for module %s',
+                args.from_package,
+                args.source,
+            )
             # Parse the package to install
             install_spec = parse_source(args.from_package)
             logger.info('Parsed install spec: %s', install_spec)
-            
+
             # Use the source as the module name to find
             module_name = args.source
             logger.info('Will look for module: %s', module_name)
         else:
             # Normal case: source is both what to install and what to find
-            logger.info('Normal mode: parsing source specification: %s', args.source)
+            logger.info(
+                'Normal mode: parsing source specification: %s',
+                args.source,
+            )
             install_spec = parse_source(args.source)
             module_name = install_spec.name
             logger.info('Parsed source spec: %s', install_spec)
@@ -100,11 +107,18 @@ def main() -> None:
             logger.info('Dry run mode - would install: %s', install_spec)
             logger.info('Would look for module: %s', module_name)
             logger.info('Would look for directory: %s', args.directory)
-            logger.info('Would create symlink name: %s', args.symlink_name or f'.{module_name}')
+            logger.info(
+                'Would create symlink name: %s',
+                args.symlink_name or f'.{module_name}',
+            )
             return
 
         # Resolve the source path using install_spec but look for module_name
-        logger.info('Resolving source path for install_spec: %s, module: %s', install_spec, module_name)
+        logger.info(
+            'Resolving source path for install_spec: %s, module: %s',
+            install_spec,
+            module_name,
+        )
         source_path = resolve_source_path(install_spec, module_name)
         logger.info('Resolved source path: %s', source_path)
 
@@ -126,22 +140,37 @@ def main() -> None:
         logger.info('Created link operation: %s', operation)
 
         # Check if source directory exists
-        logger.info('Checking if source directory exists: %s', operation.full_source_path)
+        logger.info(
+            'Checking if source directory exists: %s',
+            operation.full_source_path,
+        )
         if not operation.full_source_path.exists():
-            logger.error('Source directory not found: %s', operation.full_source_path)
-            
+            logger.error(
+                'Source directory not found: %s',
+                operation.full_source_path,
+            )
+
             # Log contents of parent directory for debugging
             parent_dir = operation.full_source_path.parent
             if parent_dir.exists():
-                logger.info('Parent directory contents: %s', list(parent_dir.iterdir()))
-            
-            sys.stderr.write(f'Error: Source directory not found: {operation.full_source_path}\n')
+                logger.info(
+                    'Parent directory contents: %s',
+                    list(parent_dir.iterdir()),
+                )
+
+            sys.stderr.write(
+                f'Error: Source directory not found: {operation.full_source_path}\n',
+            )
             sys.exit(1)
 
         # Create the symlink
         target_path = Path.cwd() / operation.symlink_name
-        logger.info('Creating symlink: %s -> %s', target_path, operation.full_source_path)
-        
+        logger.info(
+            'Creating symlink: %s -> %s',
+            target_path,
+            operation.full_source_path,
+        )
+
         is_symlink = create_symlink(
             operation.full_source_path,
             target_path,
@@ -149,10 +178,14 @@ def main() -> None:
         )
 
         if is_symlink:
-            sys.stdout.write(f'Created symlink: {target_path} -> {operation.full_source_path}\n')
+            sys.stdout.write(
+                f'Created symlink: {target_path} -> {operation.full_source_path}\n',
+            )
             logger.info('Successfully created symlink')
         else:
-            sys.stdout.write(f'Created copy: {target_path} (symlinks not supported)\n')
+            sys.stdout.write(
+                f'Created copy: {target_path} (symlinks not supported)\n',
+            )
             logger.info('Successfully created copy (symlinks not supported)')
 
     except Exception as e:

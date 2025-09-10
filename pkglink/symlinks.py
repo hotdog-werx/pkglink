@@ -19,7 +19,7 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
     Returns True if symlink was created, False if fallback copy was used.
     """
     logger.info('Creating symlink: %s -> %s (force=%s)', target, source, force)
-    
+
     if target.exists() and not force:
         logger.error('Target already exists and force=False: %s', target)
         msg = f'Target already exists: {target}'

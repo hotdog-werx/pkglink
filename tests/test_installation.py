@@ -142,7 +142,10 @@ class TestResolveSourcePath:
             'myrepo',
         )
 
-    def test_resolve_remote_source_with_different_module(self, mocker: MockerFixture) -> None:
+    def test_resolve_remote_source_with_different_module(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
         """Test resolving remote source path with different module name."""
         # Mock the UV installation and package finding
         fake_install_dir = Path('/fake/install/dir')
