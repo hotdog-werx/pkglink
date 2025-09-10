@@ -12,6 +12,17 @@ from pkglink.main import main as main_function
 class TestIntegrationToolbelt:
     """Integration tests using the actual toolbelt package."""
 
+    def _create_fake_pyproject_toml(
+        self,
+        fake_toolbelt_dir: Path,
+        name: str = 'fake-toolbelt',
+    ) -> None:
+        """Create a minimal pyproject.toml file to make the directory a valid Python project for uvx."""
+        (fake_toolbelt_dir / 'pyproject.toml').write_text(f"""[project]
+name = "{name}"
+version = "0.1.0"
+""")
+
     def test_toolbelt_resources_integration(
         self,
         tmp_path: Path,
@@ -28,6 +39,9 @@ class TestIntegrationToolbelt:
         fake_resources_dir = fake_toolbelt_dir / 'resources'
         fake_resources_dir.mkdir()
         (fake_resources_dir / 'config.txt').write_text('test config')
+
+        # Add minimal pyproject.toml to make it a Python project for uvx
+        self._create_fake_pyproject_toml(fake_toolbelt_dir)
 
         # Mock sys.argv to use local path instead of package name
         test_args = [
@@ -70,6 +84,9 @@ class TestIntegrationToolbelt:
         fake_resources_dir = fake_toolbelt_dir / 'resources'
         fake_resources_dir.mkdir()
         (fake_resources_dir / 'config.txt').write_text('test config')
+
+        # Add minimal pyproject.toml to make it a Python project for uvx
+        self._create_fake_pyproject_toml(fake_toolbelt_dir)
 
         # Mock sys.argv with custom symlink name
         test_args = [
@@ -115,6 +132,12 @@ class TestIntegrationToolbelt:
         fake_resources_dir = fake_toolbelt_dir / 'resources'
         fake_resources_dir.mkdir()
 
+        # Add minimal pyproject.toml to make it a Python project for uvx
+        self._create_fake_pyproject_toml(
+            fake_toolbelt_dir,
+            name='fake-toolbelt-source',
+        )
+
         # Mock sys.argv
         test_args = [
             'pkglink',
@@ -147,6 +170,12 @@ class TestIntegrationToolbelt:
         fake_resources_dir = fake_toolbelt_dir / 'resources'
         fake_resources_dir.mkdir()
         (fake_resources_dir / 'config.txt').write_text('test config')
+
+        # Add minimal pyproject.toml to make it a Python project for uvx
+        self._create_fake_pyproject_toml(
+            fake_toolbelt_dir,
+            name='fake-toolbelt-source',
+        )
 
         # Create an existing symlink with the expected name
         existing_target = tmp_path / '.fake_toolbelt_source'
@@ -193,6 +222,9 @@ class TestIntegrationToolbelt:
         fake_target_dir = fake_toolbelt_dir / directory
         fake_target_dir.mkdir()
         (fake_target_dir / 'config.txt').write_text('test config')
+
+        # Add minimal pyproject.toml to make it a Python project for uvx
+        self._create_fake_pyproject_toml(fake_toolbelt_dir)
 
         # Mock sys.argv
         test_args = [
@@ -241,6 +273,9 @@ class TestIntegrationToolbelt:
             'github test config',
         )
 
+        # Add minimal pyproject.toml to make it a Python project for uvx
+        self._create_fake_pyproject_toml(fake_toolbelt_dir)
+
         # Mock sys.argv with GitHub repository format but use local path
         test_args = [
             'pkglink',
@@ -282,6 +317,9 @@ class TestIntegrationToolbelt:
         fake_configs_dir = fake_toolbelt_dir / 'configs'
         fake_configs_dir.mkdir()
         (fake_configs_dir / 'github_settings.yaml').write_text('github: true')
+
+        # Add minimal pyproject.toml to make it a Python project for uvx
+        self._create_fake_pyproject_toml(fake_toolbelt_dir)
 
         # Mock sys.argv with custom symlink name
         test_args = [

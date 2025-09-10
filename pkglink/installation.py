@@ -254,12 +254,20 @@ def install_with_uvx(spec: SourceSpec) -> Path:
 
     # If already cached, return the existing directory
     if cache_dir.exists():
-        logger.info('using_cached_installation', package=spec.name, _verbose_cache_dir=str(cache_dir))
+        logger.info(
+            'using_cached_installation',
+            package=spec.name,
+            _verbose_cache_dir=str(cache_dir),
+        )
         return cache_dir
 
     try:
         # Use uvx to install, then use uvx to run a script that tells us the site-packages
-        logger.info('downloading_package_with_uvx', package=spec.name, source=install_spec)
+        logger.info(
+            'downloading_package_with_uvx',
+            package=spec.name,
+            source=install_spec,
+        )
         cmd = [
             'uvx',
             '--from',
@@ -287,7 +295,11 @@ def install_with_uvx(spec: SourceSpec) -> Path:
 
         # Copy the site-packages to our cache directory
         shutil.copytree(site_packages, cache_dir)
-        logger.info('package_downloaded_and_cached', package=spec.name, _verbose_cache_dir=str(cache_dir))
+        logger.info(
+            'package_downloaded_and_cached',
+            package=spec.name,
+            _verbose_cache_dir=str(cache_dir),
+        )
 
     except subprocess.CalledProcessError as e:
         logger.exception('uvx installation failed')
