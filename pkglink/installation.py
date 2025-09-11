@@ -1,4 +1,6 @@
+import contextlib
 import hashlib
+import re
 import shutil
 import subprocess
 from difflib import SequenceMatcher
@@ -9,6 +11,34 @@ from pkglink.models import SourceSpec
 from pkglink.parsing import build_uv_install_spec
 
 logger = get_logger(__name__)
+
+
+def _is_immutable_reference(spec: SourceSpec) -> bool:
+    """Check if a source specification refers to an immutable reference that can be cached indefinitely."""
+    if spec.source_type == 'package' and spec.version:
+        # Package with specific version - immutable
+        return True
+
+    if spec.source_type == 'github' and spec.version:
+        # GitHub with commit hash (40 char hex) - immutable
+        if re.match(r'^[a-f0-9]{40}$', spec.version):
+            return True
+        # GitHub with semver-like version tag - generally immutable
+        if re.match(r'^v?\d+\.\d+\.\d+', spec.version):
+            return True
+
+    # Everything else (branches, latest packages) - mutable
+    return False
+
+
+def _should_refresh_cache(cache_dir: Path, spec: SourceSpec) -> bool:
+    """Determine if cache should be refreshed based on reference type."""
+    if not cache_dir.exists():
+        return True
+
+    # For immutable references, never refresh our local cache
+    # For mutable references, always refresh our local cache
+    return not _is_immutable_reference(spec)
 
 
 def find_python_package(install_dir: Path) -> Path | None:
@@ -252,8 +282,8 @@ def install_with_uvx(spec: SourceSpec) -> Path:
     spec_hash = hashlib.sha256(install_spec.encode()).hexdigest()[:8]
     cache_dir = cache_base / f'{spec.name}_{spec_hash}'
 
-    # If already cached, return the existing directory
-    if cache_dir.exists():
+    # If already cached and shouldn't be refreshed, return the existing directory
+    if cache_dir.exists() and not _should_refresh_cache(cache_dir, spec):
         logger.info(
             'using_cached_installation',
             package=spec.name,
@@ -261,21 +291,48 @@ def install_with_uvx(spec: SourceSpec) -> Path:
         )
         return cache_dir
 
+    # Remove stale cache if it exists and needs refresh
+    if cache_dir.exists():
+        logger.info(
+            'refreshing_stale_cache',
+            package=spec.name,
+            _verbose_cache_dir=str(cache_dir),
+        )
+        with contextlib.suppress(OSError, FileNotFoundError):
+            # Cache directory might have been removed by another process
+            shutil.rmtree(cache_dir)
+
     try:
         # Use uvx to install, then use uvx to run a script that tells us the site-packages
-        logger.info(
-            'downloading_package_with_uvx',
-            package=spec.name,
-            source=install_spec,
+        # For mutable references (branches), force reinstall to get latest changes
+        force_reinstall = not _is_immutable_reference(spec)
+
+        if force_reinstall:
+            logger.info(
+                'downloading_package_with_uvx_force_reinstall',
+                package=spec.name,
+                source=install_spec,
+                reason='mutable_reference',
+            )
+        else:
+            logger.info(
+                'downloading_package_with_uvx',
+                package=spec.name,
+                source=install_spec,
+            )
+
+        cmd = ['uvx']
+        if force_reinstall:
+            cmd.append('--force-reinstall')
+        cmd.extend(
+            [
+                '--from',
+                install_spec,
+                'python',
+                '-c',
+                'import site; print(site.getsitepackages()[0])',
+            ],
         )
-        cmd = [
-            'uvx',
-            '--from',
-            install_spec,
-            'python',
-            '-c',
-            'import site; print(site.getsitepackages()[0])',
-        ]
         logger.debug('running_uvx_command', _debug_command=' '.join(cmd))
 
         result = subprocess.run(  # noqa: S603 - executing uvx

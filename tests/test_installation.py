@@ -1,5 +1,6 @@
 """Tests for pkglink installation functionality."""
 
+import hashlib
 import subprocess
 import tempfile
 from pathlib import Path
@@ -9,6 +10,8 @@ from pytest_mock import MockerFixture
 
 from pkglink import installation
 from pkglink.installation import (
+    _is_immutable_reference,
+    _should_refresh_cache,
     find_by_prefix,
     find_by_similarity,
     find_by_suffix,
@@ -21,6 +24,7 @@ from pkglink.installation import (
     resolve_source_path,
 )
 from pkglink.models import SourceSpec
+from pkglink.parsing import build_uv_install_spec
 
 
 class TestPackageRootFinding:
@@ -289,20 +293,29 @@ class TestInstallWithUvx:
     """Tests for install_with_uvx function."""
 
     def test_install_with_uvx_cached(self, mocker: MockerFixture) -> None:
-        """Test install_with_uvx when package is already cached."""
+        """Test install_with_uvx when package is already cached and immutable."""
         with tempfile.TemporaryDirectory() as temp_home:
             temp_home_path = Path(temp_home)
             mocker.patch('pathlib.Path.home', return_value=temp_home_path)
-            mocker.patch.object(Path, 'exists', return_value=True)
 
-            spec = SourceSpec(source_type='github', name='repo', org='org')
+            # Use an immutable reference (commit hash) so cache won't be refreshed
+            spec = SourceSpec(
+                source_type='github',
+                name='repo',
+                org='org',
+                version='a' * 40,  # 40-char commit hash
+            )
+
+            # Calculate the actual cache directory name
+            install_spec = build_uv_install_spec(spec)
+            spec_hash = hashlib.sha256(install_spec.encode()).hexdigest()[:8]
+            cache_dir = temp_home_path / '.cache' / 'pkglink' / f'{spec.name}_{spec_hash}'
+            cache_dir.mkdir(parents=True)
 
             result = install_with_uvx(spec)
 
             # Should return the cached directory
-            assert str(result).startswith(
-                str(temp_home_path / '.cache' / 'pkglink'),
-            )
+            assert result == cache_dir
 
     def test_install_with_uvx_not_cached(self, mocker: MockerFixture) -> None:
         """Test install_with_uvx when package is not cached."""
@@ -358,3 +371,259 @@ class TestInstallWithUvx:
 
             with pytest.raises(RuntimeError, match='Failed to install'):
                 install_with_uvx(spec)
+
+    def test_install_with_uvx_mutable_reference_refresh_cache(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test install_with_uvx when mutable reference needs cache refresh."""
+        with tempfile.TemporaryDirectory() as temp_home:
+            temp_home_path = Path(temp_home)
+            mocker.patch('pathlib.Path.home', return_value=temp_home_path)
+
+            # Create an existing cache directory for mutable reference
+            spec = SourceSpec(
+                source_type='github',
+                name='repo',
+                org='org',
+                version='main',  # mutable branch reference
+            )
+
+            # Calculate cache directory and create it
+            install_spec = build_uv_install_spec(spec)
+            spec_hash = hashlib.sha256(install_spec.encode()).hexdigest()[:8]
+            cache_dir = temp_home_path / '.cache' / 'pkglink' / f'{spec.name}_{spec_hash}'
+            cache_dir.mkdir(parents=True)
+
+            # Create a dummy file in cache to verify it gets removed
+            dummy_file = cache_dir / 'dummy.txt'
+            dummy_file.write_text('old cache')
+            assert dummy_file.exists()
+
+            # Mock subprocess.run to simulate successful uvx execution
+            mock_run = mocker.patch('subprocess.run')
+            mock_run.return_value = mocker.Mock(
+                stdout=str(temp_home_path / 'site-packages') + '\n',
+                stderr='',
+            )
+
+            # Mock shutil.copytree
+            mocker.patch('shutil.copytree')
+
+            result = install_with_uvx(spec)
+
+            # Should have refreshed the cache (removed old directory)
+            # The dummy file should no longer exist
+            assert not dummy_file.exists()
+
+            # Should have called subprocess.run with --force-reinstall
+            mock_run.assert_called_once()
+            cmd_args = mock_run.call_args[0][0]
+            assert 'uvx' in cmd_args
+            assert '--force-reinstall' in cmd_args
+
+            # Should return the cache directory
+            assert result == cache_dir
+
+    def test_install_with_uvx_immutable_reference_no_force_reinstall(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test install_with_uvx for immutable reference without force reinstall."""
+        with tempfile.TemporaryDirectory() as temp_home:
+            temp_home_path = Path(temp_home)
+            mocker.patch('pathlib.Path.home', return_value=temp_home_path)
+
+            # Use immutable reference (package with version)
+            spec = SourceSpec(
+                source_type='package',
+                name='requests',
+                version='2.28.0',
+            )
+
+            # Mock subprocess.run to simulate successful uvx execution
+            mock_run = mocker.patch('subprocess.run')
+            mock_run.return_value = mocker.Mock(
+                stdout=str(temp_home_path / 'site-packages') + '\n',
+                stderr='',
+            )
+
+            # Mock shutil.copytree
+            mocker.patch('shutil.copytree')
+
+            result = install_with_uvx(spec)
+
+            # Should have called subprocess.run without --force-reinstall
+            mock_run.assert_called_once()
+            cmd_args = mock_run.call_args[0][0]
+            assert 'uvx' in cmd_args
+            assert '--force-reinstall' not in cmd_args
+
+            # Should return the cache directory
+            assert str(result).startswith(
+                str(temp_home_path / '.cache' / 'pkglink'),
+            )
+
+
+class TestMutableReferenceLogic:
+    """Tests for mutable reference detection and caching logic."""
+
+    def test_is_immutable_reference_package_with_version(self) -> None:
+        """Test that packages with specific versions are immutable."""
+        spec = SourceSpec(
+            source_type='package',
+            name='requests',
+            version='2.28.0',
+        )
+        assert _is_immutable_reference(spec)  # Covers line 20
+
+    def test_is_immutable_reference_package_without_version(self) -> None:
+        """Test that packages without versions are mutable."""
+        spec = SourceSpec(source_type='package', name='requests')
+        assert not _is_immutable_reference(spec)
+
+    def test_is_immutable_reference_github_commit_hash(self) -> None:
+        """Test that GitHub commit hashes are immutable."""
+        spec = SourceSpec(
+            source_type='github',
+            name='repo',
+            org='org',
+            version='a' * 40,  # 40-char hex commit hash
+        )
+        assert _is_immutable_reference(spec)  # Covers line 28
+
+    def test_is_immutable_reference_github_version_tag(self) -> None:
+        """Test that GitHub version tags are immutable."""
+        test_cases = ['v1.2.3', '1.2.3', 'v10.20.30', '2.0.0-alpha.1']
+        for version in test_cases:
+            spec = SourceSpec(
+                source_type='github',
+                name='repo',
+                org='org',
+                version=version,
+            )
+            assert _is_immutable_reference(spec), f'Version {version} should be immutable'  # Covers line 37
+
+    def test_is_immutable_reference_github_branch(self) -> None:
+        """Test that GitHub branches are mutable."""
+        test_cases = ['main', 'develop', 'feature-branch', 'fix/bug-123']
+        for branch in test_cases:
+            spec = SourceSpec(
+                source_type='github',
+                name='repo',
+                org='org',
+                version=branch,
+            )
+            assert not _is_immutable_reference(spec), f'Branch {branch} should be mutable'
+
+    def test_is_immutable_reference_github_without_version(self) -> None:
+        """Test that GitHub without version (default branch) is mutable."""
+        spec = SourceSpec(source_type='github', name='repo', org='org')
+        assert not _is_immutable_reference(spec)
+
+    def test_should_refresh_cache_nonexistent_cache(self) -> None:
+        """Test cache refresh when cache doesn't exist."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            nonexistent_cache = Path(temp_dir) / 'nonexistent'
+            spec = SourceSpec(source_type='package', name='test')
+
+            assert _should_refresh_cache(nonexistent_cache, spec)
+
+    def test_should_refresh_cache_immutable_reference(self) -> None:
+        """Test cache refresh for immutable references."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / 'cache'
+            cache_dir.mkdir()
+
+            # Immutable reference should not refresh cache
+            spec = SourceSpec(
+                source_type='package',
+                name='requests',
+                version='2.28.0',
+            )
+            assert not _should_refresh_cache(cache_dir, spec)
+
+    def test_should_refresh_cache_mutable_reference(self) -> None:
+        """Test cache refresh for mutable references."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / 'cache'
+            cache_dir.mkdir()
+
+            # Mutable reference should refresh cache
+            spec = SourceSpec(
+                source_type='github',
+                name='repo',
+                org='org',
+                version='main',
+            )
+            assert _should_refresh_cache(cache_dir, spec)
+
+    def test_install_with_uvx_force_reinstall_command_building(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that force_reinstall flag is added to uvx command for mutable references."""
+        with tempfile.TemporaryDirectory() as temp_home:
+            temp_home_path = Path(temp_home)
+            mocker.patch('pathlib.Path.home', return_value=temp_home_path)
+
+            # Mock subprocess.run to capture the command
+            mock_run = mocker.patch('subprocess.run')
+            mock_run.return_value = mocker.Mock(
+                stdout=str(temp_home_path / 'site-packages') + '\n',
+                stderr='',
+            )
+
+            # Mock shutil.copytree
+            mocker.patch('shutil.copytree')
+
+            # Use mutable reference (branch)
+            spec = SourceSpec(
+                source_type='github',
+                name='repo',
+                org='org',
+                version='main',
+            )
+
+            install_with_uvx(spec)
+
+            # Verify the command includes --force-reinstall (covers line 318)
+            mock_run.assert_called_once()
+            cmd_args = mock_run.call_args[0][0]
+            assert '--force-reinstall' in cmd_args
+            assert 'uvx' in cmd_args
+
+    def test_install_with_uvx_no_force_reinstall_for_immutable(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that force_reinstall flag is NOT added for immutable references."""
+        with tempfile.TemporaryDirectory() as temp_home:
+            temp_home_path = Path(temp_home)
+            mocker.patch('pathlib.Path.home', return_value=temp_home_path)
+
+            # Mock subprocess.run to capture the command
+            mock_run = mocker.patch('subprocess.run')
+            mock_run.return_value = mocker.Mock(
+                stdout=str(temp_home_path / 'site-packages') + '\n',
+                stderr='',
+            )
+
+            # Mock shutil.copytree
+            mocker.patch('shutil.copytree')
+
+            # Use immutable reference (commit hash)
+            spec = SourceSpec(
+                source_type='github',
+                name='repo',
+                org='org',
+                version='a' * 40,  # commit hash
+            )
+
+            install_with_uvx(spec)
+
+            # Verify the command does NOT include --force-reinstall
+            mock_run.assert_called_once()
+            cmd_args = mock_run.call_args[0][0]
+            assert '--force-reinstall' not in cmd_args
+            assert 'uvx' in cmd_args
