@@ -192,28 +192,68 @@ def _try_package_root_strategies(
     return None
 
 
+def _search_in_subdir_and_site_packages(
+    subdir_path: Path,
+    subdir_name: str,
+    expected_name: str,
+    target_subdir: str,
+) -> Path | None:  # pragma: no cover - Windows-specific
+    """Search for package in a subdirectory and its site-packages."""
+    logger.debug('retrying_in_subdirectory', subdir=subdir_name)
+    result = _try_package_root_strategies(
+        subdir_path,
+        expected_name,
+        target_subdir,
+    )
+    if result:
+        logger.debug(
+            'package_root_found',
+            strategy='subdir',
+            path=str(result),
+            subdir=subdir_name,
+        )
+        return result
+
+    # Also try site-packages within this subdir (common on Windows)
+    site_packages_path = subdir_path / 'site-packages'
+    if site_packages_path.exists() and site_packages_path.is_dir():
+        logger.debug(
+            'retrying_in_site_packages',
+            subdir=subdir_name,
+            site_packages=str(site_packages_path),
+        )
+        result = _try_package_root_strategies(
+            site_packages_path,
+            expected_name,
+            target_subdir,
+        )
+        if result:
+            logger.debug(
+                'package_root_found',
+                strategy='site_packages',
+                path=str(result),
+                subdir=subdir_name,
+            )
+            return result
+    return None
+
+
 def _try_windows_lib_subdirs(
     install_dir: Path,
     expected_name: str,
     target_subdir: str,
 ) -> Path | None:  # pragma: no cover - Windows-specific
-    """Try common Windows subdirs (Lib/, lib/, lib64/) for package root."""
+    """Try common Windows subdirs (Lib/, lib/, lib64/) and site-packages for package root."""
     for subdir in ['Lib', 'lib', 'lib64']:
         subdir_path = install_dir / subdir
         if subdir_path.exists() and subdir_path.is_dir():
-            logger.debug('retrying_in_subdirectory', subdir=subdir)
-            result = _try_package_root_strategies(
+            result = _search_in_subdir_and_site_packages(
                 subdir_path,
+                subdir,
                 expected_name,
                 target_subdir,
             )
             if result:
-                logger.debug(
-                    'package_root_found',
-                    strategy='subdir',
-                    path=str(result),
-                    subdir=subdir,
-                )
                 return result
     return None
 
