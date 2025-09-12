@@ -43,7 +43,7 @@ def supports_symlinks() -> bool:
     if not hasattr(os, 'symlink'):
         return False
     if os.name != 'nt':
-        return True
+        return True  # pragma: no cover - Winddows will not hit this line
     return _can_create_symlink_in_tmpdir()  # pragma: no cover - Windows-specific
 
 
