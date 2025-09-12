@@ -240,17 +240,8 @@ def resolve_source_path(
         module=module_name,
     )
 
-    if spec.source_type == 'local':
-        # For local sources, return the path directly
-        logger.debug('local_source_detected', name=spec.name)
-        path = Path(spec.name).resolve()
-        if not path.exists():
-            msg = f'Local path does not exist: {path}'
-            raise RuntimeError(msg)
-        logger.debug('resolved_local_path', path=str(path))
-        return path
-
-    # For remote sources, use uvx to install
+    # For all source types (including local), use uvx to install
+    # This ensures we get the proper installed package structure
     target_module = module_name or spec.name
     logger.debug('target_module_to_find', module=target_module)
 

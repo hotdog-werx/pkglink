@@ -11,6 +11,7 @@ class SourceSpec(BaseModel):
     name: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
     version: str | None = None
     org: str | None = None  # For GitHub sources
+    local_path: str | None = None  # For local sources, stores the original path
 
 
 class LinkTarget(BaseModel):
