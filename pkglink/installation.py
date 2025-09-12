@@ -158,6 +158,59 @@ def find_first_directory(install_dir: Path) -> Path | None:
     return None
 
 
+def _try_package_root_strategies(
+    install_dir: Path,
+    expected_name: str,
+) -> Path | None:
+    strategies = [
+        find_exact_match,
+        find_python_package,
+        find_with_resources,
+        find_by_prefix,
+        find_by_suffix,
+        find_by_similarity,
+        find_first_directory,
+    ]
+    for strategy in strategies:
+        if strategy in [
+            find_python_package,
+            find_with_resources,
+            find_first_directory,
+        ]:
+            result = strategy(install_dir)
+        else:
+            result = strategy(install_dir, expected_name)
+        if result:
+            logger.debug(
+                'package_root_found',
+                strategy=strategy.__name__,
+                path=str(result),
+            )
+            return result
+    return None
+
+
+def _try_windows_lib_subdirs(
+    install_dir: Path,
+    expected_name: str,
+) -> Path | None:  # pragma: no cover - Windows-specific
+    """Try common Windows subdirs (Lib/, lib/, lib64/) for package root."""
+    for subdir in ['Lib', 'lib', 'lib64']:
+        subdir_path = install_dir / subdir
+        if subdir_path.exists() and subdir_path.is_dir():
+            logger.debug('retrying_in_subdirectory', subdir=subdir)
+            result = _try_package_root_strategies(subdir_path, expected_name)
+            if result:
+                logger.debug(
+                    'package_root_found',
+                    strategy='subdir',
+                    path=str(result),
+                    subdir=subdir,
+                )
+                return result
+    return None
+
+
 def find_package_root(install_dir: Path, expected_name: str) -> Path:
     """Find the actual package directory after installation using multiple strategies."""
     logger.debug(
@@ -165,7 +218,6 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
         expected=expected_name,
         install_dir=str(install_dir),
     )
-
     # List all items for debugging
     try:
         items = list(install_dir.iterdir())
@@ -182,34 +234,15 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
         msg = f'Error accessing install directory {install_dir}: {e}'
         raise RuntimeError(msg) from e
 
-    # Try multiple strategies
-    strategies = [
-        find_exact_match,
-        find_python_package,
-        find_with_resources,
-        find_by_prefix,
-        find_by_suffix,
-        find_by_similarity,
-        find_first_directory,
-    ]
+    # Try strategies at the top level
+    result = _try_package_root_strategies(install_dir, expected_name)
+    if result:
+        return result
 
-    for strategy in strategies:
-        if strategy in [
-            find_python_package,
-            find_with_resources,
-            find_first_directory,
-        ]:
-            result = strategy(install_dir)
-        else:
-            result = strategy(install_dir, expected_name)
-
-        if result:
-            logger.debug(
-                'package_root_found',
-                strategy=strategy.__name__,
-                path=str(result),
-            )
-            return result
+    # Try common subdirs (Windows: Lib/, lib/, lib64/)
+    result = _try_windows_lib_subdirs(install_dir, expected_name)
+    if result:
+        return result  # pragma: no cover - we may hit this in CI but not in mac or linux
 
     # If all strategies fail, provide detailed error
     logger.error(
@@ -225,7 +258,7 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
             if item.is_dir() and not item.name.startswith('.') and not item.name.endswith('.dist-info')
         ],
     )
-    msg = f'Package root {expected_name} not found in {install_dir}'
+    msg = f'Package root {expected_name} not found in {install_dir} (and common subdirs)'
     raise RuntimeError(msg)
 
 
