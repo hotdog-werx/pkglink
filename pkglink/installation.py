@@ -161,6 +161,7 @@ def find_first_directory(install_dir: Path) -> Path | None:
 def _try_package_root_strategies(
     install_dir: Path,
     expected_name: str,
+    target_subdir: str,
 ) -> Path | None:
     strategies = [
         find_exact_match,
@@ -180,11 +181,12 @@ def _try_package_root_strategies(
             result = strategy(install_dir)
         else:
             result = strategy(install_dir, expected_name)
-        if result:
+        if result and (result / target_subdir).exists():
             logger.debug(
                 'package_root_found',
                 strategy=strategy.__name__,
                 path=str(result),
+                target_subdir=target_subdir,
             )
             return result
     return None
@@ -193,13 +195,18 @@ def _try_package_root_strategies(
 def _try_windows_lib_subdirs(
     install_dir: Path,
     expected_name: str,
+    target_subdir: str,
 ) -> Path | None:  # pragma: no cover - Windows-specific
     """Try common Windows subdirs (Lib/, lib/, lib64/) for package root."""
     for subdir in ['Lib', 'lib', 'lib64']:
         subdir_path = install_dir / subdir
         if subdir_path.exists() and subdir_path.is_dir():
             logger.debug('retrying_in_subdirectory', subdir=subdir)
-            result = _try_package_root_strategies(subdir_path, expected_name)
+            result = _try_package_root_strategies(
+                subdir_path,
+                expected_name,
+                target_subdir,
+            )
             if result:
                 logger.debug(
                     'package_root_found',
@@ -211,7 +218,11 @@ def _try_windows_lib_subdirs(
     return None
 
 
-def find_package_root(install_dir: Path, expected_name: str) -> Path:
+def find_package_root(
+    install_dir: Path,
+    expected_name: str,
+    target_subdir: str = 'resources',
+) -> Path:
     """Find the actual package directory after installation using multiple strategies."""
     logger.debug(
         'looking_for_package_root',
@@ -235,12 +246,16 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
         raise RuntimeError(msg) from e
 
     # Try strategies at the top level
-    result = _try_package_root_strategies(install_dir, expected_name)
+    result = _try_package_root_strategies(
+        install_dir,
+        expected_name,
+        target_subdir,
+    )
     if result:
         return result
 
     # Try common subdirs (Windows: Lib/, lib/, lib64/)
-    result = _try_windows_lib_subdirs(install_dir, expected_name)
+    result = _try_windows_lib_subdirs(install_dir, expected_name, target_subdir)
     if result:
         return result  # pragma: no cover - we may hit this in CI but not in mac or linux
 
@@ -265,12 +280,14 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
 def resolve_source_path(
     spec: SourceSpec,
     module_name: str | None = None,
+    target_subdir: str = 'resources',
 ) -> Path:
     """Resolve source specification to an actual filesystem path."""
     logger.debug(
         'resolving_source_path',
         spec=spec.model_dump(),
         module=module_name,
+        target_subdir=target_subdir,
     )
 
     # For all source types (including local), use uvx to install
@@ -281,7 +298,7 @@ def resolve_source_path(
     # Use uvx to install the package
     logger.debug('attempting_uvx_installation')
     install_dir = install_with_uvx(spec)
-    package_root = find_package_root(install_dir, target_module)
+    package_root = find_package_root(install_dir, target_module, target_subdir)
     logger.debug('successfully_resolved_via_uvx', path=str(package_root))
     return package_root
 

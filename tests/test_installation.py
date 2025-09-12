@@ -155,6 +155,7 @@ class TestPackageRootFinding:
             package_dir = temp_path / 'somepackage'
             package_dir.mkdir()
             (package_dir / '__init__.py').touch()
+            (package_dir / 'resources').mkdir()  # Create the target subdir
 
             # Should find it using the Python package strategy
             result = find_package_root(temp_path, 'nonexistent')
@@ -224,15 +225,16 @@ class TestResolveSourcePath:
 
             result = resolve_source_path(local_spec)
 
-            # Verify mocks were called
-            mock_install_with_uvx.assert_called_once_with(local_spec)
-            mock_find_package_root.assert_called_once_with(
-                fake_install_dir,
-                str(temp_path),
-            )
+        # Verify mocks were called
+        mock_install_with_uvx.assert_called_once_with(local_spec)
+        mock_find_package_root.assert_called_once_with(
+            fake_install_dir,
+            str(temp_path),
+            'resources',
+        )
 
-            # Result should be the mocked package root
-            assert result == fake_package_root
+        # Result should be the mocked package root
+        assert result == fake_package_root
 
     def test_resolve_local_source_not_exists(
         self,
@@ -288,6 +290,7 @@ class TestResolveSourcePath:
         mock_find_package_root.assert_called_once_with(
             fake_install_dir,
             'myrepo',
+            'resources',
         )
 
     def test_resolve_remote_source_with_different_module(
@@ -326,6 +329,7 @@ class TestResolveSourcePath:
         mock_find_package_root.assert_called_once_with(
             fake_install_dir,
             'toolbelt',  # Should look for 'toolbelt', not 'tbelt'
+            'resources',
         )
 
 
