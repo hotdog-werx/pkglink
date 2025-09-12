@@ -210,11 +210,9 @@ class TestBuildUVInstallSpec:
         result = build_uv_install_spec(case.spec)
         assert result == case.expected
 
-    def test_build_uv_install_spec_local_raises(self) -> None:
-        """Test that local sources raise an error."""
+    def test_build_uv_install_spec_local_returns_path(self) -> None:
+        """Test that local sources return a valid path."""
         spec = SourceSpec(source_type='local', name='localpath')
-        with pytest.raises(
-            ValueError,
-            match='Cannot build UV spec for local source',
-        ):
-            build_uv_install_spec(spec)
+        result = build_uv_install_spec(spec)
+        assert isinstance(result, str)
+        assert 'localpath' in result

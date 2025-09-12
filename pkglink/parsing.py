@@ -193,11 +193,11 @@ def build_uv_install_spec(spec: SourceSpec) -> str:
 
     if spec.source_type == 'local':
         # For local sources, resolve the path and return it for uvx installation
-        if not spec.local_path:
-            msg = f'Local path not provided for local source: {spec.name}'
-            raise ValueError(msg)
-        path = Path(spec.local_path).resolve()
+        # Use local_path if available, otherwise fall back to name for backwards compatibility
+        source_path = spec.local_path or spec.name
+        path = Path(source_path).resolve()
         return str(path)
 
-    msg = f'Unsupported source type: {spec.source_type}'
-    raise ValueError(msg)
+    # next statements should be unreachable since source_type is validated
+    msg = f'Unsupported source type: {spec.source_type}'  # pragma: no cover
+    raise ValueError(msg)  # pragma: no cover
