@@ -158,14 +158,117 @@ def find_first_directory(install_dir: Path) -> Path | None:
     return None
 
 
-def find_package_root(install_dir: Path, expected_name: str) -> Path:
+def _try_package_root_strategies(
+    install_dir: Path,
+    expected_name: str,
+    target_subdir: str,
+) -> Path | None:
+    strategies = [
+        find_exact_match,
+        find_python_package,
+        find_with_resources,
+        find_by_prefix,
+        find_by_suffix,
+        find_by_similarity,
+        find_first_directory,
+    ]
+    for strategy in strategies:
+        if strategy in [
+            find_python_package,
+            find_with_resources,
+            find_first_directory,
+        ]:
+            result = strategy(install_dir)
+        else:
+            result = strategy(install_dir, expected_name)
+        if result and (result / target_subdir).exists():
+            logger.debug(
+                'package_root_found',
+                strategy=strategy.__name__,
+                path=str(result),
+                target_subdir=target_subdir,
+            )
+            return result
+    return None
+
+
+def _search_in_subdir_and_site_packages(
+    subdir_path: Path,
+    subdir_name: str,
+    expected_name: str,
+    target_subdir: str,
+) -> Path | None:  # pragma: no cover - Windows-specific
+    """Search for package in a subdirectory and its site-packages."""
+    logger.debug('retrying_in_subdirectory', subdir=subdir_name)
+    result = _try_package_root_strategies(
+        subdir_path,
+        expected_name,
+        target_subdir,
+    )
+    if result:
+        logger.debug(
+            'package_root_found',
+            strategy='subdir',
+            path=str(result),
+            subdir=subdir_name,
+        )
+        return result
+
+    # Also try site-packages within this subdir (common on Windows)
+    site_packages_path = subdir_path / 'site-packages'
+    if site_packages_path.exists() and site_packages_path.is_dir():
+        logger.debug(
+            'retrying_in_site_packages',
+            subdir=subdir_name,
+            site_packages=str(site_packages_path),
+        )
+        result = _try_package_root_strategies(
+            site_packages_path,
+            expected_name,
+            target_subdir,
+        )
+        if result:
+            logger.debug(
+                'package_root_found',
+                strategy='site_packages',
+                path=str(result),
+                subdir=subdir_name,
+            )
+            return result
+    return None
+
+
+def _try_windows_lib_subdirs(
+    install_dir: Path,
+    expected_name: str,
+    target_subdir: str,
+) -> Path | None:  # pragma: no cover - Windows-specific
+    """Try common Windows subdirs (Lib/, lib/, lib64/) and site-packages for package root."""
+    for subdir in ['Lib', 'lib', 'lib64']:
+        subdir_path = install_dir / subdir
+        if subdir_path.exists() and subdir_path.is_dir():
+            result = _search_in_subdir_and_site_packages(
+                subdir_path,
+                subdir,
+                expected_name,
+                target_subdir,
+            )
+            if result:
+                return result
+    return None
+
+
+def find_package_root(
+    install_dir: Path,
+    expected_name: str,
+    target_subdir: str = 'resources',
+) -> Path:
     """Find the actual package directory after installation using multiple strategies."""
     logger.debug(
         'looking_for_package_root',
         expected=expected_name,
         install_dir=str(install_dir),
     )
-
     # List all items for debugging
     try:
         items = list(install_dir.iterdir())
@@ -182,34 +285,19 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
         msg = f'Error accessing install directory {install_dir}: {e}'
         raise RuntimeError(msg) from e
 
-    # Try multiple strategies
-    strategies = [
-        find_exact_match,
-        find_python_package,
-        find_with_resources,
-        find_by_prefix,
-        find_by_suffix,
-        find_by_similarity,
-        find_first_directory,
-    ]
+    # Try strategies at the top level
+    result = _try_package_root_strategies(
+        install_dir,
+        expected_name,
+        target_subdir,
+    )
+    if result:
+        return result
 
-    for strategy in strategies:
-        if strategy in [
-            find_python_package,
-            find_with_resources,
-            find_first_directory,
-        ]:
-            result = strategy(install_dir)
-        else:
-            result = strategy(install_dir, expected_name)
-
-        if result:
-            logger.debug(
-                'package_root_found',
-                strategy=strategy.__name__,
-                path=str(result),
-            )
-            return result
+    # Try common subdirs (Windows: Lib/, lib/, lib64/)
+    result = _try_windows_lib_subdirs(install_dir, expected_name, target_subdir)
+    if result:
+        return result  # pragma: no cover - we may hit this in CI but not in mac or linux
 
     # If all strategies fail, provide detailed error
     logger.error(
@@ -225,39 +313,32 @@ def find_package_root(install_dir: Path, expected_name: str) -> Path:
             if item.is_dir() and not item.name.startswith('.') and not item.name.endswith('.dist-info')
         ],
     )
-    msg = f'Package root {expected_name} not found in {install_dir}'
+    msg = f'Package root {expected_name} not found in {install_dir} (and common subdirs)'
     raise RuntimeError(msg)
 
 
 def resolve_source_path(
     spec: SourceSpec,
     module_name: str | None = None,
+    target_subdir: str = 'resources',
 ) -> Path:
     """Resolve source specification to an actual filesystem path."""
     logger.debug(
         'resolving_source_path',
         spec=spec.model_dump(),
         module=module_name,
+        target_subdir=target_subdir,
     )
 
-    if spec.source_type == 'local':
-        # For local sources, return the path directly
-        logger.debug('local_source_detected', name=spec.name)
-        path = Path(spec.name).resolve()
-        if not path.exists():
-            msg = f'Local path does not exist: {path}'
-            raise RuntimeError(msg)
-        logger.debug('resolved_local_path', path=str(path))
-        return path
-
-    # For remote sources, use uvx to install
+    # For all source types (including local), use uvx to install
+    # This ensures we get the proper installed package structure
     target_module = module_name or spec.name
     logger.debug('target_module_to_find', module=target_module)
 
     # Use uvx to install the package
     logger.debug('attempting_uvx_installation')
     install_dir = install_with_uvx(spec)
-    package_root = find_package_root(install_dir, target_module)
+    package_root = find_package_root(install_dir, target_module, target_subdir)
     logger.debug('successfully_resolved_via_uvx', path=str(package_root))
     return package_root
 

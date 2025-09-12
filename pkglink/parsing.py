@@ -117,6 +117,7 @@ def parse_source(source: str) -> SourceSpec:
         return SourceSpec(
             source_type='local',
             name=_extract_local_name(source),
+            local_path=source,
         )
 
     return _parse_package_source(source)
@@ -125,7 +126,8 @@ def parse_source(source: str) -> SourceSpec:
 def _is_local_path(source: str) -> bool:
     """Check if the source string represents a local path."""
     return (
-        source.startswith(('./', '/', '~'))
+        source in ('.', './')
+        or source.startswith(('./', '/', '~'))
         or Path(source).is_absolute()
         or re.match(r'^[A-Za-z]:[/\\]', source) is not None  # Windows absolute path
     )
@@ -136,7 +138,12 @@ def _extract_local_name(source: str) -> str:
     # Handle Windows paths on non-Windows systems
     if re.match(r'^[A-Za-z]:[/\\]', source):
         return source.replace('\\', '/').split('/')[-1]
-    return Path(source).expanduser().name
+
+    path = Path(source).expanduser()
+    # For current directory references, resolve to get the actual name
+    if source in ('.', './'):
+        return path.resolve().name
+    return path.name
 
 
 def _parse_github_source(source: str) -> SourceSpec:
@@ -184,5 +191,13 @@ def build_uv_install_spec(spec: SourceSpec) -> str:
     if spec.source_type == 'package':
         return f'{spec.name}=={spec.version}' if spec.version else spec.name
 
-    msg = f'Cannot build UV spec for local source: {spec.name}'
-    raise ValueError(msg)
+    if spec.source_type == 'local':
+        # For local sources, resolve the path and return it for uvx installation
+        # Use local_path if available, otherwise fall back to name for backwards compatibility
+        source_path = spec.local_path or spec.name
+        path = Path(source_path).resolve()
+        return str(path)
+
+    # next statements should be unreachable since source_type is validated
+    msg = f'Unsupported source type: {spec.source_type}'  # pragma: no cover
+    raise ValueError(msg)  # pragma: no cover

@@ -2,348 +2,398 @@
 
 import sys
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
 from pytest_mock import MockerFixture
 
 from pkglink.main import main as main_function
+from pkglink.symlinks import supports_symlinks
 
 
-class TestIntegrationToolbelt:
-    """Integration tests using the actual toolbelt package."""
+def mypkg_test_package(tmp_path: Path) -> Path:
+    """Fixture to create a minimal 'mypkg' package structure in tmp_path and return the temp dir."""
+    pkg_dir = tmp_path / 'mypkg'
+    pkg_dir.mkdir()
+    (pkg_dir / '__init__.py').write_text("VERSION = '0.1.0'")
+    resources_dir = pkg_dir / 'resources'
+    resources_dir.mkdir()
+    (resources_dir / 'hello.md').write_text('hello world')
+    (tmp_path / 'pyproject.toml').write_text(
+        dedent("""
+        [project]
+        name = "mypkg"
+        version = "0.1.0"
 
-    def _create_fake_pyproject_toml(
-        self,
-        fake_toolbelt_dir: Path,
-        name: str = 'fake-toolbelt',
-    ) -> None:
-        """Create a minimal pyproject.toml file to make the directory a valid Python project for uvx."""
-        (fake_toolbelt_dir / 'pyproject.toml').write_text(f"""[project]
-name = "{name}"
-version = "0.1.0"
-""")
+        [build-system]
+        requires = ["hatchling"]
+        build-backend = "hatchling.build"
 
-    def test_toolbelt_resources_integration(
-        self,
-        tmp_path: Path,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test linking toolbelt resources directory - full integration."""
-        # Change to the temp directory
-        monkeypatch.chdir(tmp_path)
-
-        # Create a fake toolbelt package structure
-        fake_toolbelt_dir = tmp_path / 'fake_toolbelt'
-        fake_toolbelt_dir.mkdir()
-        fake_resources_dir = fake_toolbelt_dir / 'resources'
-        fake_resources_dir.mkdir()
-        (fake_resources_dir / 'config.txt').write_text('test config')
-
-        # Add minimal pyproject.toml to make it a Python project for uvx
-        self._create_fake_pyproject_toml(fake_toolbelt_dir)
-
-        # Mock sys.argv to use local path instead of package name
-        test_args = [
-            'pkglink',
-            str(fake_toolbelt_dir),  # Use the fake directory as source
-            'resources',
+        [tool.hatch.build]
+        include = [
+        "mypkg/**",
         ]
-        mocker.patch.object(sys, 'argv', test_args)
+        """),
+    )
+    return tmp_path
 
-        # Run the main function (no heavy mocking needed)
-        main_function()
 
-        # Verify the symlink was created
-        expected_symlink = tmp_path / '.fake_toolbelt'
-        assert expected_symlink.exists(), f'Symlink {expected_symlink} was not created'
-        assert expected_symlink.is_symlink(), f'{expected_symlink} is not a symlink'
+@pytest.fixture
+def mypkg_package(tmp_path: Path) -> Path:
+    """Pytest fixture for the minimal mypkg package, returns the temp dir."""
+    return mypkg_test_package(tmp_path)
 
-        # Verify it points to a resources directory
-        target = expected_symlink.resolve()
-        assert target.name == 'resources', f'Target should be resources directory, got {target.name}'
-        assert target.exists(), f'Target {target} does not exist'
-        assert target.is_dir(), f'Target {target} is not a directory'
 
-        # Verify some expected files exist in the resources directory
-        assert len(list(target.iterdir())) > 0, 'Resources directory should not be empty'
+def debug_caplog_streams(
+    caplog: pytest.LogCaptureFixture,
+    capfd: pytest.CaptureFixture,
+    label: str = '',
+) -> None:
+    sys.stdout.write(f'\nCaptured pkglink logs{label}:\n')
+    sys.stdout.write(caplog.text)
+    captured = capfd.readouterr()
+    sys.stdout.write(f'\nCaptured stdout{label}:\n')
+    sys.stdout.write(captured.out)
+    sys.stdout.write(f'\nCaptured stderr{label}:\n')
+    sys.stdout.write(captured.err)
 
-    def test_toolbelt_custom_symlink_name_integration(
-        self,
-        tmp_path: Path,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test linking toolbelt with custom symlink name - full integration."""
-        # Change to the temp directory
-        monkeypatch.chdir(tmp_path)
 
-        # Create a fake toolbelt package structure
-        fake_toolbelt_dir = tmp_path / 'fake_toolbelt'
-        fake_toolbelt_dir.mkdir()
-        fake_resources_dir = fake_toolbelt_dir / 'resources'
-        fake_resources_dir.mkdir()
-        (fake_resources_dir / 'config.txt').write_text('test config')
+def debug_assertion(
+    message: str,
+    caplog: pytest.LogCaptureFixture,
+    capfd: pytest.CaptureFixture,
+    label: str = '',
+) -> str:
+    captured = capfd.readouterr()
+    return f'{message}\nLOGS{label}:\n{caplog.text}\nSTDOUT{label}:\n{captured.out}\nSTDERR{label}:\n{captured.err}'
 
-        # Add minimal pyproject.toml to make it a Python project for uvx
-        self._create_fake_pyproject_toml(fake_toolbelt_dir)
 
-        # Mock sys.argv with custom symlink name
-        test_args = [
-            'pkglink',
-            str(fake_toolbelt_dir),
-            'resources',
-            '--symlink-name',
-            '.codeguide',
-        ]
-        mocker.patch.object(sys, 'argv', test_args)
-
-        # Run the main function
-        main_function()
-
-        # Verify the custom symlink was created
-        expected_symlink = tmp_path / '.codeguide'
-        assert expected_symlink.exists(), f'Symlink {expected_symlink} was not created'
-        assert expected_symlink.is_symlink(), f'{expected_symlink} is not a symlink'
-
-        # Verify it points to a resources directory
-        target = expected_symlink.resolve()
-        assert target.name == 'resources', f'Target should be resources directory, got {target.name}'
-        assert target.exists(), f'Target {target} does not exist'
-        assert target.is_dir(), f'Target {target} is not a directory'
-
-    def test_toolbelt_already_exists_skips(
-        self,
-        tmp_path: Path,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test that existing symlink is skipped without error."""
-        # Change to the temp directory
-        monkeypatch.chdir(tmp_path)
-
-        # Create an existing target
-        existing_target = tmp_path / '.fake_toolbelt'
-        existing_target.mkdir()
-
-        # Create a fake toolbelt package structure
-        fake_toolbelt_dir = tmp_path / 'fake_toolbelt_source'
-        fake_toolbelt_dir.mkdir()
-        fake_resources_dir = fake_toolbelt_dir / 'resources'
-        fake_resources_dir.mkdir()
-
-        # Add minimal pyproject.toml to make it a Python project for uvx
-        self._create_fake_pyproject_toml(
-            fake_toolbelt_dir,
-            name='fake-toolbelt-source',
+def assert_output_contains(  # noqa: PLR0913 - helper function, gets a pass on params
+    output: str,
+    substrings: list[str],
+    caplog: pytest.LogCaptureFixture,
+    capfd: pytest.CaptureFixture,
+    label: str = '',
+    message: str = 'Expected output to contain one of the specified substrings.',
+) -> None:
+    """Assert that the output contains at least one of the specified substrings."""
+    if not any(sub in output for sub in substrings):
+        raise AssertionError(
+            debug_assertion(
+                f'{message}\nChecked for: {substrings}\nOutput:\n{output}',
+                caplog,
+                capfd,
+                label,
+            ),
         )
 
-        # Mock sys.argv
-        test_args = [
-            'pkglink',
-            str(fake_toolbelt_dir),
-            'resources',
-        ]
-        mocker.patch.object(sys, 'argv', test_args)
 
-        # Run the main function - should not raise an error
+def call_main(
+    caplog: pytest.LogCaptureFixture,
+    capfd: pytest.CaptureFixture,
+    label: str = '',
+) -> None:
+    caplog.set_level('DEBUG')
+    try:
         main_function()
+    except Exception:
+        debug_caplog_streams(caplog, capfd, label)
+        raise
 
-        # Verify the existing directory is still there and unchanged
-        assert existing_target.exists()
-        assert existing_target.is_dir()
-        assert not existing_target.is_symlink()  # Still the original directory
 
-    def test_toolbelt_force_overwrite_integration(
-        self,
-        tmp_path: Path,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test force overwrite of existing target."""
-        # Change to the temp directory
-        monkeypatch.chdir(tmp_path)
-
-        # Create an existing target
-        fake_toolbelt_dir = tmp_path / 'fake_toolbelt_source'
-        fake_toolbelt_dir.mkdir()
-        fake_resources_dir = fake_toolbelt_dir / 'resources'
-        fake_resources_dir.mkdir()
-        (fake_resources_dir / 'config.txt').write_text('test config')
-
-        # Add minimal pyproject.toml to make it a Python project for uvx
-        self._create_fake_pyproject_toml(
-            fake_toolbelt_dir,
-            name='fake-toolbelt-source',
+def assert_link_or_copy(
+    target: Path,
+    caplog: pytest.LogCaptureFixture,
+    capfd: pytest.CaptureFixture,
+    content_file: str | None = None,
+    expected_content: str | None = None,
+):
+    if supports_symlinks():
+        assert target.is_symlink(), debug_assertion(
+            f'Expected symlink at {target}, but it was not a symlink.',
+            caplog,
+            capfd,
+        )
+    else:
+        assert target.exists(), debug_assertion(
+            f'Expected regular file or directory at {target} (copy fallback), but it was missing.',
+            caplog,
+            capfd,
+        )
+        assert not target.is_symlink(), debug_assertion(
+            f'Expected {target} to not be a symlink (copy fallback), but it was a symlink.',
+            caplog,
+            capfd,
+        )
+    if content_file and expected_content is not None:
+        actual = (target / content_file).read_text()
+        assert actual == expected_content, debug_assertion(
+            f"File '{content_file}' did not contain expected content. Got: {actual}",
+            caplog,
+            capfd,
         )
 
-        # Create an existing symlink with the expected name
-        existing_target = tmp_path / '.fake_toolbelt_source'
-        existing_target.mkdir()
-        (existing_target / 'old_file.txt').write_text('old content')
 
-        # Mock sys.argv with force flag
-        test_args = [
-            'pkglink',
-            str(fake_toolbelt_dir),
-            'resources',
-            '--force',
-        ]
-        mocker.patch.object(sys, 'argv', test_args)
+def test_pkglink_local_package_real_install(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capfd: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+    mypkg_package: Path,
+) -> None:
+    """Test real installation of a local package using pkglink."""
+    # Change to temp dir
+    monkeypatch.chdir(mypkg_package)
 
-        # Run the main function
+    # NOTE: In a real repo, pkglink infers the symlink name from the package name.
+    # In this test, since we use --from . (the temp dir), pkglink would use the temp dir name.
+    # To ensure the symlink is named .mypkg, we must specify --symlink-name .mypkg explicitly.
+    test_args = [
+        'pkglink',
+        '--from',
+        '.',
+        'mypkg',
+        'resources',
+        '--symlink-name',
+        '.mypkg',
+        '--verbose',
+    ]
+    mocker.patch.object(sys, 'argv', test_args)
+
+    # Run the CLI main function and capture output
+    call_main(caplog, capfd)
+
+    # Check symlink
+    symlink = mypkg_package / '.mypkg'
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
+
+
+def test_pkglink_toolbelt_package_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capfd: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test linking a directory from the real toolbelt package using pkglink."""
+    # Change to temp dir
+    monkeypatch.chdir(tmp_path)
+
+    # NOTE: This will use the real toolbelt package (should be cached if already installed)
+    # Explicitly specify symlink name to ensure .toolbelt is created
+    test_args = [
+        'pkglink',
+        '--from',
+        'tbelt',
+        'toolbelt',
+        'resources',
+        '--symlink-name',
+        '.toolbelt',
+        '--verbose',
+    ]
+    mocker.patch.object(sys, 'argv', test_args)
+
+    caplog.set_level('DEBUG')
+    try:
         main_function()
+    except Exception:
+        debug_caplog_streams(caplog, capfd)
+        raise
 
-        # Verify the target was replaced with a symlink
-        assert existing_target.exists()
-        assert existing_target.is_symlink(), 'Target should now be a symlink'
+    # Check symlink
+    symlink = tmp_path / '.toolbelt'
+    assert_link_or_copy(symlink, caplog, capfd)
+    # The installed resources dir should contain at least one file
+    assert any(symlink.iterdir()), debug_assertion(
+        'Toolbelt resources directory should not be empty',
+        caplog,
+        capfd,
+    )
 
-        # Verify it points to the correct location
-        target = existing_target.resolve()
-        assert target.name == 'resources'
-        assert target.exists()
-        assert target.is_dir()
+    # Run pkglink again with the same params, should print a message about the symlink already existing
+    caplog.clear()
+    call_main(caplog, capfd, ' (second run)')
+    # Check logs or output for message about symlink already existing
+    output = capfd.readouterr().out + caplog.text
+    assert_output_contains(
+        output,
+        ['already exists', 'already a symlink', 'skipping'],
+        caplog,
+        capfd,
+        message='Expected message about symlink already existing',
+    )
 
-    @pytest.mark.parametrize('directory', ['resources', 'configs'])
-    def test_toolbelt_different_directories(
-        self,
-        tmp_path: Path,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-        directory: str,
-    ) -> None:
-        """Test linking different directories from toolbelt."""
-        # Change to the temp directory
-        monkeypatch.chdir(tmp_path)
 
-        # Create a fake toolbelt package structure
-        fake_toolbelt_dir = tmp_path / 'fake_toolbelt'
-        fake_toolbelt_dir.mkdir()
-        fake_target_dir = fake_toolbelt_dir / directory
-        fake_target_dir.mkdir()
-        (fake_target_dir / 'config.txt').write_text('test config')
+def test_pkglink_local_package_real_install_force(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capfd: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+    mypkg_package: Path,
+) -> None:
+    """Test real installation of a local package using pkglink with --force to trigger removal of existing link."""
+    # Change to temp dir
+    monkeypatch.chdir(mypkg_package)
 
-        # Add minimal pyproject.toml to make it a Python project for uvx
-        self._create_fake_pyproject_toml(fake_toolbelt_dir)
+    # First run: create the symlink
+    test_args = [
+        'pkglink',
+        '--from',
+        '.',
+        'mypkg',
+        'resources',
+        '--symlink-name',
+        '.mypkg',
+        '--verbose',
+    ]
+    mocker.patch.object(sys, 'argv', test_args)
+    call_main(caplog, capfd)
+    symlink = mypkg_package / '.mypkg'
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
 
-        # Mock sys.argv
-        test_args = [
-            'pkglink',
-            str(fake_toolbelt_dir),
-            directory,
-        ]
-        mocker.patch.object(sys, 'argv', test_args)
+    # Second run: use --force to trigger removal of the existing link
+    caplog.clear()
+    test_args_force = [
+        'pkglink',
+        '--from',
+        '.',
+        'mypkg',
+        'resources',
+        '--symlink-name',
+        '.mypkg',
+        '--force',
+        '--verbose',
+    ]
+    mocker.patch.object(sys, 'argv', test_args_force)
+    call_main(caplog, capfd)
+    # Check logs for removal message
+    output = capfd.readouterr().out + caplog.text
+    assert_output_contains(
+        output,
+        ['removing_existing_target'],
+        caplog,
+        capfd,
+        message='Expected log about removing existing target',
+    )
+    # Symlink should still exist and be valid
+    assert symlink.is_symlink(), debug_assertion(
+        f'Symlink {symlink} was not created.',
+        caplog,
+        capfd,
+    )
+    assert (symlink / 'hello.md').read_text() == 'hello world', debug_assertion(
+        "File 'hello.md' was not found or did not contain expected content.",
+        caplog,
+        capfd,
+    )
 
-        # Test for successful execution or expected failure
-        try:
-            main_function()
 
-            # If successful, verify the symlink was created correctly
-            expected_symlink = tmp_path / '.fake_toolbelt'
-            assert expected_symlink.exists(), f'Symlink {expected_symlink} was not created'
-            assert expected_symlink.is_symlink(), f'{expected_symlink} is not a symlink'
+def test_pkglink_local_package_real_install_auto_force(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capfd: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+    mypkg_package: Path,
+) -> None:
+    """Test that pkglink skips symlink recreation for local package installs.
 
-            # Verify it points to the correct directory
-            target = expected_symlink.resolve()
-            assert target.name == directory, f'Target should be {directory} directory, got {target.name}'
-            assert target.exists(), f'Target {target} does not exist'
-            assert target.is_dir(), f'Target {target} is not a directory'
+    If the link is already correct (no --force needed).
+    """
+    # Change to temp dir
+    monkeypatch.chdir(mypkg_package)
 
-        except SystemExit:
-            # If the directory doesn't exist in toolbelt, that's also a valid test result
-            # We're testing that the system behaves correctly even when the requested directory doesn't exist
-            pass  # Expected behavior for missing directories
+    # First run: create the symlink
+    test_args = [
+        'pkglink',
+        '--from',
+        '.',
+        'mypkg',
+        'resources',
+        '--symlink-name',
+        '.mypkg',
+        '--verbose',
+    ]
+    mocker.patch.object(sys, 'argv', test_args)
+    call_main(caplog, capfd)
+    symlink = mypkg_package / '.mypkg'
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
 
-    def test_github_repository_integration(
-        self,
-        tmp_path: Path,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test linking from a GitHub repository."""
-        # Change to the temp directory
-        monkeypatch.chdir(tmp_path)
+    # Second run: do NOT use --force, pkglink should skip recreation if the link is already correct
+    caplog.clear()
+    mocker.patch.object(sys, 'argv', test_args)
+    call_main(caplog, capfd)
+    # Check logs for skip message
+    output = capfd.readouterr().out + caplog.text
+    assert_output_contains(
+        output,
+        [
+            'already exists',
+            'already a symlink',
+            'skipping',
+            'target_already_exists_and_correct_skipping',
+        ],
+        caplog,
+        capfd,
+        message='Expected message about symlink already existing/skipping',
+    )
+    # Symlink should still exist and be valid
+    assert symlink.is_symlink()
+    assert (symlink / 'hello.md').read_text() == 'hello world'
 
-        # Create a fake toolbelt package structure
-        fake_toolbelt_dir = tmp_path / 'fake_toolbelt'
-        fake_toolbelt_dir.mkdir()
-        fake_resources_dir = fake_toolbelt_dir / 'resources'
-        fake_resources_dir.mkdir()
-        (fake_resources_dir / 'github_config.txt').write_text(
-            'github test config',
-        )
 
-        # Add minimal pyproject.toml to make it a Python project for uvx
-        self._create_fake_pyproject_toml(fake_toolbelt_dir)
+def test_pkglink_local_package_real_install_auto_force_with_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capfd: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+    mypkg_package: Path,
+) -> None:
+    """Test that pkglink auto-forces symlink overwrite for local package installs if the target is incorrect."""
+    # Change to temp dir
+    monkeypatch.chdir(mypkg_package)
 
-        # Mock sys.argv with GitHub repository format but use local path
-        test_args = [
-            'pkglink',
-            str(fake_toolbelt_dir),  # Use local path instead of github: URL
-            'resources',
-        ]
-        mocker.patch.object(sys, 'argv', test_args)
+    # First run: create the symlink
+    test_args = [
+        'pkglink',
+        '--from',
+        '.',
+        'mypkg',
+        'resources',
+        '--symlink-name',
+        '.mypkg',
+        '--verbose',
+    ]
+    mocker.patch.object(sys, 'argv', test_args)
+    call_main(caplog, capfd)
+    symlink = mypkg_package / '.mypkg'
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
 
-        # Run the main function
-        main_function()
+    # Replace the symlink with a directory to simulate a conflicting target
+    symlink.unlink()
+    (mypkg_package / '.mypkg').mkdir()
+    (mypkg_package / '.mypkg' / 'dummy.txt').write_text('conflict')
 
-        # Verify the symlink was created
-        expected_symlink = tmp_path / '.fake_toolbelt'
-        assert expected_symlink.exists(), f'Symlink {expected_symlink} was not created'
-        assert expected_symlink.is_symlink(), f'{expected_symlink} is not a symlink'
-
-        # Verify it points to a resources directory
-        target = expected_symlink.resolve()
-        assert target.name == 'resources', f'Target should be resources directory, got {target.name}'
-        assert target.exists(), f'Target {target} does not exist'
-        assert target.is_dir(), f'Target {target} is not a directory'
-
-        # Verify the GitHub-specific file exists
-        assert (target / 'github_config.txt').exists(), 'GitHub-specific config file should exist'
-
-    def test_github_repository_with_custom_symlink(
-        self,
-        tmp_path: Path,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test linking from a GitHub repository with custom symlink name."""
-        # Change to the temp directory
-        monkeypatch.chdir(tmp_path)
-
-        # Create a fake toolbelt package structure
-        fake_toolbelt_dir = tmp_path / 'fake_toolbelt'
-        fake_toolbelt_dir.mkdir()
-        fake_configs_dir = fake_toolbelt_dir / 'configs'
-        fake_configs_dir.mkdir()
-        (fake_configs_dir / 'github_settings.yaml').write_text('github: true')
-
-        # Add minimal pyproject.toml to make it a Python project for uvx
-        self._create_fake_pyproject_toml(fake_toolbelt_dir)
-
-        # Mock sys.argv with custom symlink name
-        test_args = [
-            'pkglink',
-            str(fake_toolbelt_dir),
-            'configs',
-            '--symlink-name',
-            '.github-configs',
-        ]
-        mocker.patch.object(sys, 'argv', test_args)
-
-        # Run the main function
-        main_function()
-
-        # Verify the custom symlink was created
-        expected_symlink = tmp_path / '.github-configs'
-        assert expected_symlink.exists(), f'Symlink {expected_symlink} was not created'
-        assert expected_symlink.is_symlink(), f'{expected_symlink} is not a symlink'
-
-        # Verify it points to the configs directory
-        target = expected_symlink.resolve()
-        assert target.name == 'configs', f'Target should be configs directory, got {target.name}'
-        assert target.exists(), f'Target {target} does not exist'
-        assert target.is_dir(), f'Target {target} is not a directory'
-
-        # Verify the GitHub-specific file exists
-        assert (target / 'github_settings.yaml').exists(), 'GitHub-specific settings file should exist'
+    # Second run: do NOT use --force, pkglink should auto-remove the directory and recreate the symlink
+    caplog.clear()
+    mocker.patch.object(sys, 'argv', test_args)
+    call_main(caplog, capfd)
+    # Check logs for removal message
+    output = capfd.readouterr().out + caplog.text
+    assert_output_contains(
+        output,
+        ['removing_existing_target'],
+        caplog,
+        capfd,
+        message='Expected log about removing existing target (auto-force for local with conflict)',
+    )
+    # Symlink should exist and be valid
+    assert symlink.is_symlink(), debug_assertion(
+        f'Symlink {symlink} was not created.',
+        caplog,
+        capfd,
+    )
+    assert (symlink / 'hello.md').read_text() == 'hello world', debug_assertion(
+        "File 'hello.md' was not found or did not contain expected content.",
+        caplog,
+        capfd,
+    )

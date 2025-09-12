@@ -155,6 +155,7 @@ class TestPackageRootFinding:
             package_dir = temp_path / 'somepackage'
             package_dir.mkdir()
             (package_dir / '__init__.py').touch()
+            (package_dir / 'resources').mkdir()  # Create the target subdir
 
             # Should find it using the Python package strategy
             result = find_package_root(temp_path, 'nonexistent')
@@ -195,21 +196,62 @@ class TestPackageRootFinding:
 class TestResolveSourcePath:
     """Tests for resolve_source_path function."""
 
-    def test_resolve_local_source_exists(self) -> None:
+    def test_resolve_local_source_exists(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         """Test resolving local source path when it exists."""
+        # Mock the uvx installation process for local sources
+        fake_install_dir = tmp_path / 'cache' / 'pkglink_test'
+        fake_install_dir.mkdir(parents=True, exist_ok=True)
+        fake_package_root = fake_install_dir / 'test_package'
+        fake_package_root.mkdir(parents=True, exist_ok=True)
+
+        mock_install_with_uvx = mocker.patch.object(
+            installation,
+            'install_with_uvx',
+            return_value=fake_install_dir,
+        )
+        mock_find_package_root = mocker.patch.object(
+            installation,
+            'find_package_root',
+            return_value=fake_package_root,
+        )
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             local_spec = SourceSpec(source_type='local', name=str(temp_path))
 
             result = resolve_source_path(local_spec)
-            assert result == temp_path.resolve()
 
-    def test_resolve_local_source_not_exists(self) -> None:
-        """Test resolving local source path when it doesn't exist."""
+        # Verify mocks were called
+        mock_install_with_uvx.assert_called_once_with(local_spec)
+        mock_find_package_root.assert_called_once_with(
+            fake_install_dir,
+            str(temp_path),
+            'resources',
+        )
+
+        # Result should be the mocked package root
+        assert result == fake_package_root
+
+    def test_resolve_local_source_not_exists(
+        self,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test resolving local source path when uvx installation fails."""
+        # Mock uvx installation to fail for non-existent paths
+        mocker.patch.object(
+            installation,
+            'install_with_uvx',
+            side_effect=RuntimeError('Failed to install'),
+        )
+
         nonexistent_path = '/nonexistent/path'
         local_spec = SourceSpec(source_type='local', name=nonexistent_path)
 
-        with pytest.raises(RuntimeError, match='Local path does not exist'):
+        with pytest.raises(RuntimeError, match='Failed to install'):
             resolve_source_path(local_spec)
 
     def test_resolve_remote_source(
@@ -248,6 +290,7 @@ class TestResolveSourcePath:
         mock_find_package_root.assert_called_once_with(
             fake_install_dir,
             'myrepo',
+            'resources',
         )
 
     def test_resolve_remote_source_with_different_module(
@@ -286,6 +329,7 @@ class TestResolveSourcePath:
         mock_find_package_root.assert_called_once_with(
             fake_install_dir,
             'toolbelt',  # Should look for 'toolbelt', not 'tbelt'
+            'resources',
         )
 
 

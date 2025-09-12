@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 from pkglink.logging import get_logger
@@ -9,9 +10,41 @@ from pkglink.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _cleanup_symlink_test(
+    test_link: Path,
+    test_path: Path,
+) -> None:  # pragma: no cover - Windows-specific
+    try:
+        if test_link.exists():
+            test_link.unlink()
+        if test_path.exists():
+            test_path.unlink()
+    except OSError:
+        pass
+
+
+def _can_create_symlink_in_tmpdir() -> bool:  # pragma: no cover - Windows-specific
+    """Attempt to create a symlink in a temp dir. Return True if successful, False otherwise."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_path = Path(tmpdir) / 'symlink_test_target'
+        test_link = Path(tmpdir) / 'symlink_test_link'
+        test_path.write_text('test')
+        try:
+            test_link.symlink_to(test_path)
+            result = test_link.is_symlink()
+        except OSError:
+            result = False
+        _cleanup_symlink_test(test_link, test_path)
+        return result
+
+
 def supports_symlinks() -> bool:
-    """Check if the current system supports symlinks."""
-    return hasattr(os, 'symlink')
+    """Check if the current system supports symlinks (and has permission)."""
+    if not hasattr(os, 'symlink'):
+        return False
+    if os.name != 'nt':
+        return True  # pragma: no cover - Winddows will not hit this line
+    return _can_create_symlink_in_tmpdir()  # pragma: no cover - Windows-specific
 
 
 def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
@@ -29,7 +62,7 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
     if target.exists():
         if force:
             logger.info('removing_existing_target', target=str(target))
-            remove_target(target)
+            remove_target(target, expected_name=target.name)
         else:
             logger.error('target_already_exists', target=str(target))
             msg = f'Target already exists: {target}'
@@ -58,14 +91,102 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
     return False
 
 
-def remove_target(target: Path) -> None:
-    """Remove a target file or directory (symlink or copy)."""
+def _check_not_dot_or_dotdot(
+    resolved_name: str,
+    target: Path,
+    resolved_target: Path,
+) -> None:
+    # Defensive: This check is not practically reachable via normal filesystem operations,
+    # because you cannot create files or directories named '.' or '..'. These are always interpreted
+    # as the current or parent directory by the OS and pathlib. Retained for defense-in-depth in case
+    # a malicious Path object is constructed elsewhere in the codebase. See tests for details.
+    if resolved_name in {'.', '..'}:  # pragma: no cover
+        logger.error(
+            'refusing_to_remove_dot_or_dotdot',
+            target=str(target),
+            resolved_target=str(resolved_target),
+            resolved_name=resolved_name,
+        )
+        msg = f"Refusing to remove '{resolved_name}' (resolved from {target})"
+        raise ValueError(msg)
+
+
+def _check_dot_prefix(target_name: str, target: Path) -> None:
+    if not target_name.startswith('.'):
+        logger.error(
+            'refusing_to_remove_target_without_dot_prefix',
+            target=str(target),
+            target_name=target_name,
+        )
+        msg = f'Refusing to remove target without dot prefix: {target}'
+        raise ValueError(msg)
+
+
+def _check_name_match(
+    target_name: str,
+    expected_name: str,
+    target: Path,
+) -> None:
+    if target_name != expected_name:
+        logger.error(
+            'refusing_to_remove_target_name_mismatch',
+            target=str(target),
+            target_name=target_name,
+            expected_name=expected_name,
+        )
+        msg = f'Refusing to remove target: name mismatch. Expected "{expected_name}", got "{target_name}"'
+        raise ValueError(msg)
+
+
+def _check_path_traversal(target_name: str, target: Path) -> None:
+    # Defensive: This check is not practically reachable via normal filesystem operations,
+    # because you cannot create files or directories with '/' or '\\' in the name, and '..' is always
+    # interpreted as the parent directory. Retained for defense-in-depth in case a malicious Path object
+    # is constructed elsewhere in the codebase. See tests for details.
+    if '..' in target_name or '/' in target_name or '\\' in target_name:  # pragma: no cover
+        logger.error(
+            'refusing_to_remove_target_with_path_traversal',
+            target=str(target),
+            target_name=target_name,
+        )
+        msg = f'Refusing to remove target with path traversal characters: {target}'
+        raise ValueError(msg)
+
+
+def remove_target(target: Path, *, expected_name: str) -> None:
+    """Remove a target file or directory (symlink or copy).
+
+    Safety checks:
+    1. Target name must start with '.' to prevent accidental deletion of user directories
+    2. Target name must exactly match expected_name to prevent path traversal attacks
+    3. After resolving, refuse to remove '.' or '..' to prevent dangerous removals
+    """
+    target_name = target.name
+    resolved_target = target.resolve()
+    resolved_name = resolved_target.name
+
+    _check_not_dot_or_dotdot(resolved_name, target, resolved_target)
+    _check_dot_prefix(target_name, target)
+    _check_name_match(target_name, expected_name, target)
+    _check_path_traversal(target_name, target)
+
+    logger.debug('removing_target', target=str(target), target_name=target_name)
     if target.is_symlink():
+        logger.debug('removing_symlink')
         target.unlink()
-    elif target.is_dir():
+        return
+    if target.is_dir():
+        logger.debug('removing_directory')
         shutil.rmtree(target)
-    elif target.is_file():
+        return
+    if target.is_file():
+        logger.debug('removing_file')
         target.unlink()
+        return
+    logger.warning(
+        'target_does_not_exist_or_unrecognized_type',
+        target=str(target),
+    )
 
 
 def is_managed_link(target: Path) -> bool:
