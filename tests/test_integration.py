@@ -8,6 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from pkglink.main import main as main_function
+from pkglink.symlinks import supports_symlinks
 
 
 def mypkg_test_package(tmp_path: Path) -> Path:
@@ -100,6 +101,39 @@ def call_main(
         raise
 
 
+def assert_link_or_copy(
+    target: Path,
+    caplog: pytest.LogCaptureFixture,
+    capfd: pytest.CaptureFixture,
+    content_file: str | None = None,
+    expected_content: str | None = None,
+):
+    if supports_symlinks():
+        assert target.is_symlink(), debug_assertion(
+            f'Expected symlink at {target}, but it was not a symlink.',
+            caplog,
+            capfd,
+        )
+    else:
+        assert target.exists(), debug_assertion(
+            f'Expected regular file or directory at {target} (copy fallback), but it was missing.',
+            caplog,
+            capfd,
+        )
+        assert not target.is_symlink(), debug_assertion(
+            f'Expected {target} to not be a symlink (copy fallback), but it was a symlink.',
+            caplog,
+            capfd,
+        )
+    if content_file and expected_content is not None:
+        actual = (target / content_file).read_text()
+        assert actual == expected_content, debug_assertion(
+            f"File '{content_file}' did not contain expected content. Got: {actual}",
+            caplog,
+            capfd,
+        )
+
+
 def test_pkglink_local_package_real_install(
     monkeypatch: pytest.MonkeyPatch,
     mocker: MockerFixture,
@@ -131,17 +165,7 @@ def test_pkglink_local_package_real_install(
 
     # Check symlink
     symlink = mypkg_package / '.mypkg'
-    assert symlink.is_symlink(), debug_assertion(
-        f'Symlink {symlink} was not created.',
-        caplog,
-        capfd,
-    )
-    # The installed resources dir should contain hello.md
-    assert (symlink / 'hello.md').read_text() == 'hello world', debug_assertion(
-        "File 'hello.md' was not found or did not contain expected content.",
-        caplog,
-        capfd,
-    )
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
 
 
 def test_pkglink_toolbelt_package_symlink(
@@ -178,11 +202,7 @@ def test_pkglink_toolbelt_package_symlink(
 
     # Check symlink
     symlink = tmp_path / '.toolbelt'
-    assert symlink.is_symlink(), debug_assertion(
-        f'Symlink {symlink} was not created.',
-        caplog,
-        capfd,
-    )
+    assert_link_or_copy(symlink, caplog, capfd)
     # The installed resources dir should contain at least one file
     assert any(symlink.iterdir()), debug_assertion(
         'Toolbelt resources directory should not be empty',
@@ -229,8 +249,7 @@ def test_pkglink_local_package_real_install_force(
     mocker.patch.object(sys, 'argv', test_args)
     call_main(caplog, capfd)
     symlink = mypkg_package / '.mypkg'
-    assert symlink.is_symlink()
-    assert (symlink / 'hello.md').read_text() == 'hello world'
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
 
     # Second run: use --force to trigger removal of the existing link
     caplog.clear()
@@ -297,8 +316,7 @@ def test_pkglink_local_package_real_install_auto_force(
     mocker.patch.object(sys, 'argv', test_args)
     call_main(caplog, capfd)
     symlink = mypkg_package / '.mypkg'
-    assert symlink.is_symlink()
-    assert (symlink / 'hello.md').read_text() == 'hello world'
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
 
     # Second run: do NOT use --force, pkglink should skip recreation if the link is already correct
     caplog.clear()
@@ -348,8 +366,7 @@ def test_pkglink_local_package_real_install_auto_force_with_conflict(
     mocker.patch.object(sys, 'argv', test_args)
     call_main(caplog, capfd)
     symlink = mypkg_package / '.mypkg'
-    assert symlink.is_symlink()
-    assert (symlink / 'hello.md').read_text() == 'hello world'
+    assert_link_or_copy(symlink, caplog, capfd, 'hello.md', 'hello world')
 
     # Replace the symlink with a directory to simulate a conflicting target
     symlink.unlink()
