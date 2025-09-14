@@ -20,7 +20,12 @@ dependencies = [
 pkglink = "pkglink.main:main"
 
 [dependency-groups]
-dev = ["tbelt>=0.0.3", "pytest>=8.0.0", "pytest-mock>=3.12.0", "pytest-cov>=4.0.0"]
+dev = [
+  "tbelt>=0.0.3",
+  "pytest>=8.0.0",
+  "pytest-mock>=3.12.0",
+  "pytest-cov>=4.0.0",
+]
 
 [tool.hatch]
 build.packages = ["pkglink"]
@@ -28,12 +33,7 @@ metadata.allow-direct-references = true
 version.path = 'pkglink/version.py'
 
 [tool]
-poe.include = ["configs/tasks.toml"]
-pyright.typeCheckingMode = "standard"
-ruff.extend = "configs/ruff.toml"
-ruff.exclude = [
-  "tests/**/fixtures/**", # Exclude test fixture resources from linting
-]
+pyright.extends = ".codeguide/configs/pyrightconfig.json"
 
 [build-system]
 requires = ["hatchling"]
