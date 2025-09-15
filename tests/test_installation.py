@@ -12,14 +12,7 @@ from pkglink import installation
 from pkglink.installation import (
     _is_immutable_reference,
     _should_refresh_cache,
-    find_by_prefix,
-    find_by_similarity,
-    find_by_suffix,
-    find_exact_match,
-    find_first_directory,
     find_package_root,
-    find_python_package,
-    find_with_resources,
     install_with_uvx,
     resolve_source_path,
 )
@@ -30,149 +23,71 @@ from pkglink.parsing import build_uv_install_spec
 class TestPackageRootFinding:
     """Tests for package root finding functions."""
 
-    def test_find_exact_match_exists(self) -> None:
-        """Test finding exact match when it exists."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            expected_dir = temp_path / 'mypackage'
-            expected_dir.mkdir()
-
-            result = find_exact_match(temp_path, 'mypackage')
-            assert result == expected_dir
-
-    def test_find_exact_match_not_exists(self) -> None:
-        """Test finding exact match when it doesn't exist."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-
-            result = find_exact_match(temp_path, 'nonexistent')
-            assert result is None
-
-    def test_find_by_prefix_exists(self) -> None:
-        """Test finding directory by prefix."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            package_dir = temp_path / 'mypackage-main'
-            package_dir.mkdir()
-
-            result = find_by_prefix(temp_path, 'mypackage')
-            assert result == package_dir
-
-    def test_find_by_prefix_not_exists(self) -> None:
-        """Test finding directory by prefix when none match."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            (temp_path / 'otherpackage').mkdir()
-
-            result = find_by_prefix(temp_path, 'mypackage')
-            assert result is None
-
-    def test_find_by_suffix_exists(self) -> None:
-        """Test finding directory by suffix."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            package_dir = temp_path / 'main-mypackage'
-            package_dir.mkdir()
-
-            result = find_by_suffix(temp_path, 'mypackage')
-            assert result == package_dir
-
-    def test_find_by_suffix_not_exists(self) -> None:
-        """Test finding directory by suffix when none match."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            (temp_path / 'otherpackage').mkdir()
-
-            result = find_by_suffix(temp_path, 'mypackage')
-            assert result is None
-
-    def test_find_by_similarity_high_match(self) -> None:
-        """Test finding directory by similarity with high match."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            package_dir = temp_path / 'my-package'
-            package_dir.mkdir()
-
-            result = find_by_similarity(temp_path, 'mypackage')
-            assert result == package_dir
-
-    def test_find_by_similarity_low_match(self) -> None:
-        """Test finding directory by similarity with low match."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            (temp_path / 'completely-different').mkdir()
-
-            result = find_by_similarity(temp_path, 'mypackage')
-            assert result is None
-
-    def test_find_by_similarity_below_threshold(self) -> None:
-        """Test finding directory by similarity below threshold."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            # Create a directory with very low similarity
-            (temp_path / 'xyz').mkdir()
-
-            result = find_by_similarity(temp_path, 'mypackage')
-            assert result is None
-
-    def test_find_python_package(self) -> None:
-        """Test finding Python package with __init__.py."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            package_dir = temp_path / 'mypackage'
-            package_dir.mkdir()
-            (package_dir / '__init__.py').touch()
-
-            result = find_python_package(temp_path)
-            assert result == package_dir
-
-    def test_find_with_resources(self) -> None:
-        """Test finding directory containing resources folder."""
+    def test_find_package_root_exact_match(self) -> None:
+        """Test finding package root with exact match."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             package_dir = temp_path / 'mypackage'
             package_dir.mkdir()
             (package_dir / 'resources').mkdir()
 
-            result = find_with_resources(temp_path)
+            result = find_package_root(temp_path, 'mypackage')
             assert result == package_dir
 
-    def test_find_first_directory(self) -> None:
-        """Test finding the first directory."""
+    def test_find_package_root_exact_match_no_target_subdir(self) -> None:
+        """Test finding package root with exact match but no target subdir."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            first_dir = temp_path / 'first'
-            first_dir.mkdir()
-            (temp_path / 'file.txt').touch()  # Should be ignored
-
-            result = find_first_directory(temp_path)
-            assert result == first_dir
-
-    def test_find_package_root_strategies(self) -> None:
-        """Test package root finding with strategy fallback."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            package_dir = temp_path / 'somepackage'
+            package_dir = temp_path / 'mypackage'
             package_dir.mkdir()
-            (package_dir / '__init__.py').touch()
-            (package_dir / 'resources').mkdir()  # Create the target subdir
-
-            # Should find it using the Python package strategy
-            result = find_package_root(temp_path, 'nonexistent')
-            assert result == package_dir
-
-    def test_find_package_root_not_found(self) -> None:
-        """Test package root finding when nothing is found."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            # Only create files, no directories
-            (temp_path / 'file.txt').touch()
+            # No resources directory
 
             with pytest.raises(
                 RuntimeError,
-                match='Package root anything not found in',
+                match='Package "mypackage" not found',
             ):
-                find_package_root(temp_path, 'anything')
+                find_package_root(temp_path, 'mypackage')
+
+    def test_find_package_root_platform_subdir_lib(self) -> None:
+        """Test finding package root in platform subdirs (lib)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            lib_dir = temp_path / 'lib'
+            lib_dir.mkdir()
+            package_dir = lib_dir / 'mypackage'
+            package_dir.mkdir()
+            (package_dir / 'resources').mkdir()
+
+            result = find_package_root(temp_path, 'mypackage')
+            assert result == package_dir
+
+    def test_find_package_root_platform_subdir_site_packages(self) -> None:
+        """Test finding package root in platform subdirs (lib/site-packages)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            lib_dir = temp_path / 'Lib'
+            lib_dir.mkdir()
+            site_packages_dir = lib_dir / 'site-packages'
+            site_packages_dir.mkdir()
+            package_dir = site_packages_dir / 'mypackage'
+            package_dir.mkdir()
+            (package_dir / 'resources').mkdir()
+
+            result = find_package_root(temp_path, 'mypackage')
+            assert result == package_dir
+
+    def test_find_package_root_not_found(self) -> None:
+        """Test package root finding when package is not found."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            # Create some other directories
+            (temp_path / 'otherpackage').mkdir()
+
+            with pytest.raises(
+                RuntimeError,
+                match='Package "mypackage" not found',
+            ):
+                find_package_root(temp_path, 'mypackage')
 
     def test_find_package_root_error_listing_directory(
         self,
@@ -182,15 +97,41 @@ class TestPackageRootFinding:
         # Mock iterdir to raise an exception
         mock_path = mocker.Mock()
         mock_path.iterdir.side_effect = OSError('Permission denied')
-        mock_path.exists.return_value = True
-
-        mocker.patch('pathlib.Path', return_value=mock_path)
 
         with pytest.raises(
             RuntimeError,
             match='Error accessing install directory',
         ):
             find_package_root(mock_path, 'anything')
+
+    def test_find_package_root_avoids_fuzzy_match_bug(self) -> None:
+        """Test that the refactored logic avoids the previous bug with fuzzy matching."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create multiple directories with resources (simulating the previous bug scenario)
+            # toolbelt comes first alphabetically and has resources
+            toolbelt_dir = temp_path / 'atoolbelt'
+            toolbelt_dir.mkdir()
+            (toolbelt_dir / 'resources').mkdir()
+            (toolbelt_dir / 'resources' / 'toolbelt_file.txt').touch()
+
+            # Target package comes later alphabetically and also has resources
+            target_dir = temp_path / 'mypackage'
+            target_dir.mkdir()
+            (target_dir / 'resources').mkdir()
+            (target_dir / 'resources' / 'target_file.txt').touch()
+
+            # With the new logic, exact search should find 'mypackage'
+            result = find_package_root(temp_path, 'mypackage')
+            assert result == target_dir
+
+            # And searching for non-existent package should fail cleanly
+            with pytest.raises(
+                RuntimeError,
+                match='Package "nonexistent" not found',
+            ):
+                find_package_root(temp_path, 'nonexistent')
 
 
 class TestResolveSourcePath:
