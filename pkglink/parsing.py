@@ -49,6 +49,11 @@ def create_parser() -> argparse.ArgumentParser:
         dest='from_package',
         help='Installable package name (when different from module name)',
     )
+    parser.add_argument(
+        '--no-setup',
+        action='store_true',
+        help='Skip running post-install setup (pkglink.yaml)',
+    )
     return parser
 
 

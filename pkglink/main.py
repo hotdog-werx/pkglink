@@ -10,6 +10,7 @@ from pkglink.parsing import (
     determine_install_spec_and_module,
     parse_args_to_model,
 )
+from pkglink.setup import run_post_install_setup
 from pkglink.symlinks import create_symlink
 
 logger = get_logger(__name__)
@@ -182,6 +183,13 @@ def create_symlink_with_logging(
         target_path,
         force=force_removal,
     )
+
+    # Run post-install setup if not disabled
+    if not args.no_setup:
+        run_post_install_setup(
+            linked_path=target_path,
+            base_dir=target_path.parent,
+        )
 
 
 def handle_dry_run(

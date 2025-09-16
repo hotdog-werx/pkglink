@@ -101,7 +101,62 @@ pkglink mypackage==1.2.0 resources
 
 # With custom names and force overwrite
 pkglink --symlink-name .my-configs --force mypackage configs
+
+# Skip post-install setup
+pkglink --no-setup mypackage resources
 ```
+
+## Post-Install Setup
+
+`pkglink` supports automatic post-install setup through `pkglink.yaml`
+configuration files. After creating the main symlink, `pkglink` will look for a
+`pkglink.yaml` file in the linked directory and automatically create additional
+symlinks as specified.
+
+### Configuration Format
+
+Create a `pkglink.yaml` file in your package's `resources` directory:
+
+```yaml
+symlinks:
+  - source: configs/.editorconfig
+    target: .editorconfig
+  - source: configs/.gitignore
+    target: .gitignore
+  - source: configs/pyproject.toml
+    target: pyproject.toml
+```
+
+### Example Usage
+
+For a package like `codeguide` with this structure:
+
+```
+codeguide/
+└── resources/
+    ├── pkglink.yaml
+    └── configs/
+        ├── .editorconfig
+        ├── .gitignore
+        └── pyproject.toml
+```
+
+Running `pkglink codeguide` will:
+
+1. Create `.codeguide/` symlink to the resources directory
+2. Read `.codeguide/pkglink.yaml`
+3. Automatically create additional symlinks:
+   - `.editorconfig` → `.codeguide/configs/.editorconfig`
+   - `.gitignore` → `.codeguide/configs/.gitignore`
+   - `pyproject.toml` → `.codeguide/configs/pyproject.toml`
+
+### Options
+
+- **Automatic**: Post-install setup runs automatically when `pkglink.yaml`
+  exists
+- **Skip**: Use `--no-setup` flag to disable post-install setup
+- **Safe**: Invalid configurations are logged but don't stop the main linking
+  process
 
 ## How It Works
 
