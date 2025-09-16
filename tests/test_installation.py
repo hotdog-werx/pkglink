@@ -59,7 +59,11 @@ class TestPackageRootFinding:
             (package_dir / 'resources').mkdir()
 
             result = find_package_root(temp_path, 'mypackage')
-            assert result == package_dir
+            # On case-insensitive filesystems, the result might be Lib/mypackage instead of lib/mypackage
+            # Check that the result points to the correct package directory
+            assert result.name == 'mypackage'
+            assert result.parent.name.lower() == 'lib'
+            assert (result / 'resources').exists()
 
     def test_find_package_root_platform_subdir_site_packages(self) -> None:
         """Test finding package root in platform subdirs (lib/site-packages)."""
