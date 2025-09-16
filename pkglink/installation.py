@@ -58,6 +58,56 @@ def _find_exact_package_match(
     return None
 
 
+def _search_in_subdir(
+    subdir_path: Path,
+    subdir_name: str,
+    expected_name: str,
+    target_subdir: str,
+) -> Path | None:
+    """Search for package in a single platform subdirectory."""
+    logger.debug('searching_in_platform_subdir', subdir=subdir_name)
+
+    # Try exact match in this subdir
+    result = _find_exact_package_match(subdir_path, expected_name)
+    if result and (result / target_subdir).exists():
+        logger.debug(
+            'package_found_in_platform_subdir',
+            path=str(result),
+            subdir=subdir_name,
+            target_subdir=target_subdir,
+        )
+        return result
+    return None
+
+
+def _search_in_site_packages(
+    subdir_path: Path,
+    subdir_name: str,
+    expected_name: str,
+    target_subdir: str,
+) -> Path | None:
+    """Search for package in site-packages within a platform subdirectory."""
+    site_packages_path = subdir_path / 'site-packages'
+    if not (site_packages_path.exists() and site_packages_path.is_dir()):
+        return None
+
+    logger.debug(
+        'searching_in_site_packages',
+        subdir=subdir_name,
+        site_packages=str(site_packages_path),
+    )
+    result = _find_exact_package_match(site_packages_path, expected_name)
+    if result and (result / target_subdir).exists():
+        logger.debug(
+            'package_found_in_site_packages',
+            path=str(result),
+            subdir=subdir_name,
+            target_subdir=target_subdir,
+        )
+        return result
+    return None
+
+
 def _search_in_platform_subdirs(
     install_dir: Path,
     expected_name: str,
@@ -69,39 +119,25 @@ def _search_in_platform_subdirs(
         if not (subdir_path.exists() and subdir_path.is_dir()):
             continue
 
-        logger.debug('searching_in_platform_subdir', subdir=subdir_name)
-
         # Try exact match in this subdir
-        result = _find_exact_package_match(subdir_path, expected_name)
-        if result and (result / target_subdir).exists():
-            logger.debug(
-                'package_found_in_platform_subdir',
-                path=str(result),
-                subdir=subdir_name,
-                target_subdir=target_subdir,
-            )
+        result = _search_in_subdir(
+            subdir_path,
+            subdir_name,
+            expected_name,
+            target_subdir,
+        )
+        if result:
             return result
 
         # Also try site-packages within this subdir (common on Windows)
-        site_packages_path = subdir_path / 'site-packages'
-        if site_packages_path.exists() and site_packages_path.is_dir():
-            logger.debug(
-                'searching_in_site_packages',
-                subdir=subdir_name,
-                site_packages=str(site_packages_path),
-            )
-            result = _find_exact_package_match(
-                site_packages_path,
-                expected_name,
-            )
-            if result and (result / target_subdir).exists():
-                logger.debug(
-                    'package_found_in_site_packages',
-                    path=str(result),
-                    subdir=subdir_name,
-                    target_subdir=target_subdir,
-                )
-                return result
+        result = _search_in_site_packages(
+            subdir_path,
+            subdir_name,
+            expected_name,
+            target_subdir,
+        )
+        if result:
+            return result
     return None
 
 

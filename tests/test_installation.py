@@ -133,6 +133,81 @@ class TestPackageRootFinding:
             ):
                 find_package_root(temp_path, 'nonexistent')
 
+    def test_find_package_root_no_resources_in_platform_subdir(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Test finding package root when package exists but no resources in platform subdir."""
+        lib_dir = tmp_path / 'lib'
+        lib_dir.mkdir()
+        package_dir = lib_dir / 'mypackage'
+        package_dir.mkdir()
+        # No resources directory - this should fail
+
+        with pytest.raises(
+            RuntimeError,
+            match='Package "mypackage" not found',
+        ):
+            find_package_root(tmp_path, 'mypackage')
+
+    def test_find_package_root_no_site_packages_subdir(self) -> None:
+        """Test platform subdir search when site-packages doesn't exist."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            lib_dir = temp_path / 'Lib'
+            lib_dir.mkdir()
+            # No site-packages directory, and no direct package match
+            # This tests the early return in _search_in_site_packages
+
+            with pytest.raises(
+                RuntimeError,
+                match='Package "mypackage" not found',
+            ):
+                find_package_root(temp_path, 'mypackage')
+
+    def test_find_package_root_platform_subdirs_exist_but_no_package(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Test when platform subdirs exist but don't contain the target package."""
+        # Create platform subdirs but no target package in any of them
+        lib_dir = tmp_path / 'lib'
+        lib_dir.mkdir()
+        (lib_dir / 'otherpackage').mkdir()
+
+        lib64_dir = tmp_path / 'lib64'
+        lib64_dir.mkdir()
+        (lib64_dir / 'anotherpackage').mkdir()
+
+        # This should hit the final return None in _search_in_platform_subdirs (line 108)
+        with pytest.raises(
+            RuntimeError,
+            match='Package "mypackage" not found',
+        ):
+            find_package_root(tmp_path, 'mypackage')
+
+    def test_find_package_root_package_in_site_packages_no_target_subdir(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Test when package exists in site-packages but lacks target subdir."""
+        # Create lib/site-packages structure
+        lib_dir = tmp_path / 'lib'
+        lib_dir.mkdir()
+        site_packages_dir = lib_dir / 'site-packages'
+        site_packages_dir.mkdir()
+
+        # Create the package but without resources directory
+        package_dir = site_packages_dir / 'mypackage'
+        package_dir.mkdir()
+        # No resources directory - this should hit the return None in _search_in_site_packages (line 108)
+
+        with pytest.raises(
+            RuntimeError,
+            match='Package "mypackage" not found',
+        ):
+            find_package_root(tmp_path, 'mypackage')
+
 
 class TestResolveSourcePath:
     """Tests for resolve_source_path function."""
