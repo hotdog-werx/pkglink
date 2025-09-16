@@ -70,3 +70,4 @@ class CliArgs(BaseModel):
     dry_run: bool = False
     verbose: bool = False
     from_package: str | None = None
+    no_setup: bool = False
