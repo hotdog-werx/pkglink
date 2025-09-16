@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pkglink.logging import get_logger
 from pkglink.models import CliArgs, SourceSpec
+from pkglink.version import __version__
 
 logger = get_logger(__name__)
 
@@ -15,6 +16,11 @@ def create_parser() -> argparse.ArgumentParser:
         description='Create symlinks to directories from repositories and Python packages',
     )
 
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}',
+    )
     parser.add_argument(
         'source',
         help='Source specification (github:org/repo, package-name, or local path)',

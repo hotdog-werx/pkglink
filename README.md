@@ -94,7 +94,9 @@ to run in setup scripts multiple times.
 
 ### GitHub Repository Naming
 
-When using GitHub repositories, `pkglink` automatically converts repository names from **kebab-case** (hyphens) to **snake_case** (underscores) to match Python module naming conventions.
+When using GitHub repositories, `pkglink` automatically converts repository
+names from **kebab-case** (hyphens) to **snake_case** (underscores) to match
+Python module naming conventions.
 
 ```bash
 # Repository: github:org/my-awesome-package
@@ -109,11 +111,13 @@ pkglink --from github:org/repo-with-hyphens actual_module_name
 ```
 
 **Why this matters:**
+
 - GitHub repositories often use kebab-case: `my-package-name`
 - Python modules must use snake_case: `my_package_name`
 - Without conversion, `pkglink` would look for the wrong module name
 
 **Examples:**
+
 - `github:org/data-science-toolkit` → looks for module `data_science_toolkit`
 - `github:org/ml-models` → looks for module `ml_models`
 - `github:org/project-templates` → looks for module `project_templates`
