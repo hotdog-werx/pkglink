@@ -171,6 +171,41 @@ class TestDetermineInstallSpecAndModule:
         assert install_spec.version == 'v1.0.0'
         assert module_name == 'mymodule'
 
+    def test_github_source_hyphen_to_underscore_conversion(self) -> None:
+        """Test that GitHub source names with hyphens are converted to underscores for module names."""
+        args = CliArgs(
+            source='github:myorg/my-package-name',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name=None,
+        )
+
+        install_spec, module_name = determine_install_spec_and_module(args)
+
+        assert install_spec.source_type == 'github'
+        assert install_spec.name == 'my-package-name'  # Original repo name preserved
+        assert install_spec.org == 'myorg'
+        assert module_name == 'my_package_name'  # Converted to underscore for Python module
+
+    def test_package_source_no_conversion(self) -> None:
+        """Test that package source names are not converted (hyphens are valid in package names)."""
+        args = CliArgs(
+            source='my-package-name',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name=None,
+        )
+
+        install_spec, module_name = determine_install_spec_and_module(args)
+
+        assert install_spec.source_type == 'package'
+        assert install_spec.name == 'my-package-name'
+        assert module_name == 'my-package-name'  # No conversion for package sources
+
 
 class TestBuildUVInstallSpec:
     """Tests for build_uv_install_spec function."""
