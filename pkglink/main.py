@@ -240,8 +240,12 @@ def main() -> None:
         source_path = resolve_source_path(install_spec, module_name)
 
         # Check if target already exists and points to the correct source
-        target_already_exists = check_target_exists(args, install_spec, source_path)
-        
+        target_already_exists = check_target_exists(
+            args,
+            install_spec,
+            source_path,
+        )
+
         if target_already_exists:
             # Symlink exists and is correct, but we may still need to run post-install setup
             if not args.no_setup:
