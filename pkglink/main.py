@@ -240,7 +240,21 @@ def main() -> None:
         source_path = resolve_source_path(install_spec, module_name)
 
         # Check if target already exists and points to the correct source
-        if check_target_exists(args, install_spec, source_path):
+        target_already_exists = check_target_exists(
+            args,
+            install_spec,
+            source_path,
+        )
+
+        if target_already_exists:
+            # Symlink exists and is correct, but we may still need to run post-install setup
+            if not args.no_setup:
+                symlink_name = args.symlink_name or f'.{install_spec.name}'
+                target_path = Path.cwd() / symlink_name
+                run_post_install_setup(
+                    linked_path=target_path,
+                    base_dir=target_path.parent,
+                )
             return
 
         # Create operation with the already resolved source path

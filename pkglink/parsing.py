@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pkglink.logging import get_logger
 from pkglink.models import CliArgs, SourceSpec
+from pkglink.version import __version__
 
 logger = get_logger(__name__)
 
@@ -15,6 +16,11 @@ def create_parser() -> argparse.ArgumentParser:
         description='Create symlinks to directories from repositories and Python packages',
     )
 
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}',
+    )
     parser.add_argument(
         'source',
         help='Source specification (github:org/repo, package-name, or local path)',
@@ -95,12 +101,24 @@ def determine_install_spec_and_module(args: CliArgs) -> tuple[SourceSpec, str]:
     else:
         logger.info('parsing_source_specification', source=args.source)
         install_spec = parse_source(args.source)
-        module_name = install_spec.name
+
+        # For GitHub sources, convert hyphens to underscores for Python module names
+        if install_spec.source_type == 'github':
+            module_name = install_spec.name.replace('-', '_')
+            logger.debug(
+                'converted_github_module_name',
+                repo_name=install_spec.name,
+                module_name=module_name,
+            )
+        else:
+            module_name = install_spec.name
+
         logger.debug(
             'parsed_source_spec',
             name=install_spec.name,
             source_type=install_spec.source_type,
             version=install_spec.version,
+            module_name=module_name,
             _verbose_source_spec=install_spec.model_dump(),
         )
 

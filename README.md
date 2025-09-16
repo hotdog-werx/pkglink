@@ -90,7 +90,39 @@ pkglink --force mypackage resources
 operation and exit successfully (unless `--force` is used). This makes it safe
 to run in setup scripts multiple times.
 
-### Advanced Usage
+## ⚠️ Important Notes & Gotchas
+
+### GitHub Repository Naming
+
+When using GitHub repositories, `pkglink` automatically converts repository
+names from **kebab-case** (hyphens) to **snake_case** (underscores) to match
+Python module naming conventions.
+
+```bash
+# Repository: github:org/my-awesome-package
+# Python module: my_awesome_package
+
+# This works automatically:
+pkglink github:org/my-awesome-package resources
+# pkglink automatically looks for module 'my_awesome_package'
+
+# If the auto-conversion doesn't match, use --from:
+pkglink --from github:org/repo-with-hyphens actual_module_name
+```
+
+**Why this matters:**
+
+- GitHub repositories often use kebab-case: `my-package-name`
+- Python modules must use snake_case: `my_package_name`
+- Without conversion, `pkglink` would look for the wrong module name
+
+**Examples:**
+
+- `github:org/data-science-toolkit` → looks for module `data_science_toolkit`
+- `github:org/ml-models` → looks for module `ml_models`
+- `github:org/project-templates` → looks for module `project_templates`
+
+## Advanced Usage
 
 ```bash
 # GitHub repositories

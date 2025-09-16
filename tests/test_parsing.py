@@ -1,5 +1,7 @@
 """Tests for pkglink parsing functionality."""
 
+import io
+import sys
 from dataclasses import dataclass
 
 import pytest
@@ -7,9 +9,11 @@ import pytest
 from pkglink.models import CliArgs, SourceSpec
 from pkglink.parsing import (
     build_uv_install_spec,
+    create_parser,
     determine_install_spec_and_module,
     parse_source,
 )
+from pkglink.version import __version__
 
 
 @dataclass
@@ -171,6 +175,41 @@ class TestDetermineInstallSpecAndModule:
         assert install_spec.version == 'v1.0.0'
         assert module_name == 'mymodule'
 
+    def test_github_source_hyphen_to_underscore_conversion(self) -> None:
+        """Test that GitHub source names with hyphens are converted to underscores for module names."""
+        args = CliArgs(
+            source='github:myorg/my-package-name',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name=None,
+        )
+
+        install_spec, module_name = determine_install_spec_and_module(args)
+
+        assert install_spec.source_type == 'github'
+        assert install_spec.name == 'my-package-name'  # Original repo name preserved
+        assert install_spec.org == 'myorg'
+        assert module_name == 'my_package_name'  # Converted to underscore for Python module
+
+    def test_package_source_no_conversion(self) -> None:
+        """Test that package source names are not converted (hyphens are valid in package names)."""
+        args = CliArgs(
+            source='my-package-name',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name=None,
+        )
+
+        install_spec, module_name = determine_install_spec_and_module(args)
+
+        assert install_spec.source_type == 'package'
+        assert install_spec.name == 'my-package-name'
+        assert module_name == 'my-package-name'  # No conversion for package sources
+
 
 class TestBuildUVInstallSpec:
     """Tests for build_uv_install_spec function."""
@@ -216,3 +255,30 @@ class TestBuildUVInstallSpec:
         result = build_uv_install_spec(spec)
         assert isinstance(result, str)
         assert 'localpath' in result
+
+
+class TestVersionOption:
+    """Tests for --version option."""
+
+    def test_version_option_displays_version(self) -> None:
+        """Test that --version displays the correct version."""
+        parser = create_parser()
+
+        # Capture the output from --version
+        old_stdout = sys.stdout
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+
+        try:
+            with pytest.raises(SystemExit) as exc_info:
+                parser.parse_args(['--version'])
+        finally:
+            sys.stdout = old_stdout
+
+        # argparse --version exits with code 0
+        assert exc_info.value.code == 0
+
+        # Check that version is in the captured output
+        output = captured_output.getvalue()
+        assert __version__ in output
+        assert 'pkglink' in output

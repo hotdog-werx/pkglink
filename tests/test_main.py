@@ -553,3 +553,134 @@ class TestMainFunction:
             force=True,
             _verbose_args=args.model_dump(),
         )
+
+    def test_main_target_already_exists_runs_post_install_setup(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that main runs post-install setup even when target already exists and is correct."""
+        mocker.patch.object(main_module, 'configure_logging')
+        mock_parse_args = mocker.patch.object(
+            main_module,
+            'parse_args_to_model',
+        )
+        mock_determine_spec = mocker.patch.object(
+            main_module,
+            'determine_install_spec_and_module',
+        )
+        mock_resolve_source = mocker.patch.object(
+            main_module,
+            'resolve_source_path',
+        )
+        mock_run_post_install = mocker.patch.object(
+            main_module,
+            'run_post_install_setup',
+        )
+
+        # Mock parsed args (no_setup=False by default)
+        args = CliArgs(
+            source='mypackage',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name='.mylink',
+            no_setup=False,
+        )
+        mock_parse_args.return_value = args
+
+        # Mock install spec
+        install_spec = SourceSpec(source_type='package', name='mypackage')
+        mock_determine_spec.return_value = (install_spec, 'mypackage')
+
+        # Create source path and mock resolution
+        source_path = tmp_path / 'source'
+        source_path.mkdir()
+        (source_path / 'resources').mkdir()
+        mock_resolve_source.return_value = source_path
+
+        # Create existing symlink pointing to correct location
+        existing_target = tmp_path / 'current' / '.mylink'
+        existing_target.parent.mkdir()
+        existing_target.symlink_to(
+            source_path / 'resources',
+            target_is_directory=True,
+        )
+
+        mocker.patch.object(
+            main_module.Path,
+            'cwd',
+            return_value=tmp_path / 'current',
+        )
+        main_function()
+
+        # Verify post-install setup was called
+        mock_run_post_install.assert_called_once_with(
+            linked_path=existing_target,
+            base_dir=existing_target.parent,
+        )
+
+    def test_main_target_already_exists_skips_post_install_setup_when_disabled(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that main skips post-install setup when --no-setup is used."""
+        mocker.patch.object(main_module, 'configure_logging')
+        mock_parse_args = mocker.patch.object(
+            main_module,
+            'parse_args_to_model',
+        )
+        mock_determine_spec = mocker.patch.object(
+            main_module,
+            'determine_install_spec_and_module',
+        )
+        mock_resolve_source = mocker.patch.object(
+            main_module,
+            'resolve_source_path',
+        )
+        mock_run_post_install = mocker.patch.object(
+            main_module,
+            'run_post_install_setup',
+        )
+
+        # Mock parsed args with no_setup=True
+        args = CliArgs(
+            source='mypackage',
+            directory='resources',
+            dry_run=False,
+            force=False,
+            verbose=False,
+            symlink_name='.mylink',
+            no_setup=True,
+        )
+        mock_parse_args.return_value = args
+
+        # Mock install spec
+        install_spec = SourceSpec(source_type='package', name='mypackage')
+        mock_determine_spec.return_value = (install_spec, 'mypackage')
+
+        # Create source path and mock resolution
+        source_path = tmp_path / 'source'
+        source_path.mkdir()
+        (source_path / 'resources').mkdir()
+        mock_resolve_source.return_value = source_path
+
+        # Create existing symlink pointing to correct location
+        existing_target = tmp_path / 'current' / '.mylink'
+        existing_target.parent.mkdir()
+        existing_target.symlink_to(
+            source_path / 'resources',
+            target_is_directory=True,
+        )
+
+        mocker.patch.object(
+            main_module.Path,
+            'cwd',
+            return_value=tmp_path / 'current',
+        )
+        main_function()
+
+        # Verify post-install setup was NOT called
+        mock_run_post_install.assert_not_called()
