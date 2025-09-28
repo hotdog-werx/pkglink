@@ -37,5 +37,4 @@ jobs:
       # - name: check-complexity
       #   run: poe check-complexity
       - name: check-coverage
-        # run: poe check-coverage tests/integration/test_pkglinkx.py::test_pkglinkx_pyproject_dependencies
-        run: poe check-coverage tests/integration/test_pkglinkx.py::test_pkglinkx_switch_back
+        run: poe check-coverage
