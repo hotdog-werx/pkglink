@@ -228,7 +228,7 @@ def resolve_source_path(
 
     # Use uvx to install the package
     logger.debug('attempting_uvx_installation')
-    install_dir, _ = install_with_uvx(spec)  # We don't need dist_info_name here
+    install_dir, _, _ = install_with_uvx(spec)  # We don't need dist_info_name or dist_info_path here
     package_root = find_package_root(install_dir, target_module, target_subdir)
     logger.debug('successfully_resolved_via_uvx', path=str(package_root))
     return package_root
@@ -307,7 +307,7 @@ def _perform_uvx_installation(
     spec: SourceSpec,
     install_spec: str,
     cache_dir: Path,
-) -> tuple[Path, str]:
+) -> tuple[Path, str, Path]:
     """Perform the actual uvx installation and cache setup.
 
     Args:
@@ -340,7 +340,7 @@ def _perform_uvx_installation(
             )
 
         # Get the site-packages directory from uvx's environment
-        site_packages, dist_info_name = get_site_packages_path(
+        site_packages, dist_info_name, dist_info_path = get_site_packages_path(
             install_spec,
             force_reinstall=force_reinstall,
             expected_package=spec.project_name,
@@ -349,6 +349,7 @@ def _perform_uvx_installation(
             'uvx_installed_to_site_packages',
             site_packages=str(site_packages),
             dist_info_name=dist_info_name,
+            dist_info_path=str(dist_info_path),
         )
 
         # Debug: List contents of site-packages before copying
@@ -361,25 +362,20 @@ def _perform_uvx_installation(
         # Copy the site-packages to our cache directory
         shutil.copytree(site_packages, cache_dir)
 
-        # Check if dist-info is present in site-packages, else copy from parent
-        dist_info_dir = site_packages / dist_info_name
-        if not dist_info_dir.exists():
-            parent_dir = site_packages.parent
-            alt_dist_info_dir = parent_dir / dist_info_name
-            if alt_dist_info_dir.exists():
-                logger.debug(
-                    'copying_dist_info_from_parent',
-                    source=str(alt_dist_info_dir),
-                    destination=str(cache_dir / dist_info_name),
-                )
-                shutil.copytree(alt_dist_info_dir, cache_dir / dist_info_name)
-            else:
-                logger.warning(
-                    'dist_info_not_found_in_site_packages_or_parent',
-                    dist_info_name=dist_info_name,
-                    site_packages=str(site_packages),
-                    parent_dir=str(parent_dir),
-                )
+        # Copy the dist-info directory using the exact path from uvx output
+        if dist_info_path.exists():
+            logger.debug(
+                'copying_dist_info_from_uvx_path',
+                source=str(dist_info_path),
+                destination=str(cache_dir / dist_info_name),
+            )
+            shutil.copytree(dist_info_path, cache_dir / dist_info_name, dirs_exist_ok=True)
+        else:
+            logger.warning(
+                'dist_info_path_not_found',
+                dist_info_path=str(dist_info_path),
+                dist_info_name=dist_info_name,
+            )
         # Cache the dist_info_name for future use
         _cache_dist_info(cache_dir, dist_info_name)
 
@@ -392,10 +388,10 @@ def _perform_uvx_installation(
         msg = f'Failed to install {spec.name} with uvx: {e}'
         raise RuntimeError(msg) from e
     else:
-        return cache_dir, dist_info_name
+        return cache_dir, dist_info_name, dist_info_path
 
 
-def install_with_uvx(spec: SourceSpec) -> tuple[Path, str]:
+def install_with_uvx(spec: SourceSpec) -> tuple[Path, str, Path | None]:
     """Install package using uvx, then copy to a predictable location."""
     logger.debug('installing_using_uvx', package=spec.name)
 
@@ -427,7 +423,8 @@ def install_with_uvx(spec: SourceSpec) -> tuple[Path, str]:
                 f'  This will force a fresh install and resolve the issue.\n'
             )
             raise RuntimeError(msg)
-        return cache_dir, cached_dist_info_name
+        # For cached installs, we don't have the dist_info_path, so return None for it
+        return cache_dir, cached_dist_info_name, None
 
     # Remove stale cache if it exists and needs refresh
     _prepare_cache_directory(cache_dir, spec)

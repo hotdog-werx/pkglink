@@ -86,7 +86,7 @@ def _plan_uvx_structure(
         plan.uvx_cache_dir = cache_dir
     else:
         # Get cache directory (this might trigger download in planning phase)
-        cache_dir, dist_info_name = install_with_uvx(context.install_spec)
+        cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
         plan.uvx_cache_dir = cache_dir
 
     # Extract package metadata

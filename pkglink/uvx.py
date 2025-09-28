@@ -77,40 +77,43 @@ def _find_dist_info(dist_infos: list[str], expected: str) -> str | None:
     return None
 
 
-def _extract_dist_info_name(stderr_output: str, expected_package: str) -> str:
-    """Extract dist-info directory name for the expected package from uvx verbose stderr output.
+def _extract_dist_info_path(stderr_output: str, expected_package: str) -> tuple[str, Path]:
+    """Extract dist-info directory name and full path for the expected package from uvx verbose stderr output.
 
     Args:
         stderr_output: The stderr output from uvx --verbose
         expected_package: The package name to match (required)
 
     Returns:
-        The dist-info directory name if found
+        Tuple of (dist-info directory name, full path)
 
     Raises:
         RuntimeError: If no dist-info is found
     """
-    dist_infos = []
+    dist_info_candidates = []
     stderr_lines = stderr_output.split('\n')
     for line in stderr_lines:
         if 'Looking at `.dist-info` at:' in line:
-            parts = re.split(r'[\\/]', line)
-            if parts and parts[-1].endswith('.dist-info'):
-                dist_info_name = parts[-1]
-                dist_infos.append(dist_info_name)
+            # Extract the full path from the line
+            match = re.search(r'at: (.*[\\/][^\\/]+\.dist-info)', line)
+            if match:
+                full_path = match.group(1).strip()
+                dist_info_name = full_path.split(os.sep)[-1] if os.sep in full_path else full_path.split('/')[-1]
+                dist_info_candidates.append((dist_info_name, Path(full_path)))
 
     logger.debug(
-        'all_dist_infos_found',
-        dist_infos=dist_infos,
+        'all_dist_info_paths_found',
+        dist_info_candidates=[(n, str(p)) for n, p in dist_info_candidates],
         uvx_stderr_lines=len(stderr_lines),
     )
-    match = _find_dist_info(dist_infos, expected_package)
-    if match:
-        return match
+    # Find the candidate matching the expected package
+    for name, path in dist_info_candidates:
+        if _normalize_name(expected_package) in _normalize_name(name):
+            return name, path
     error_msg = (
         f"Could not find dist-info for expected package '{expected_package}'.\n"
         'If installing from GitHub, you may need to provide --project-name matching the PyPI/project name.\n'
-        f'Found dist-infos: {dist_infos} (stderr lines: {len(stderr_lines)})'
+        f'Found dist-info candidates: {dist_info_candidates} (stderr lines: {len(stderr_lines)})'
     )
     raise RuntimeError(error_msg)
 
@@ -120,7 +123,7 @@ def get_site_packages_path(
     *,
     force_reinstall: bool = False,
     expected_package: str,
-) -> tuple[Path, str]:
+) -> tuple[Path, str, Path]:
     """Get the site-packages directory for a uvx installation.
 
     Args:
@@ -157,14 +160,15 @@ def get_site_packages_path(
         raise RuntimeError(msg)
 
     site_packages = Path(result.stdout.strip())
-    dist_info_name = _extract_dist_info_name(result.stderr, expected_package)
+    dist_info_name, dist_info_path = _extract_dist_info_path(result.stderr, expected_package)
 
     logger.debug(
         'uvx_site_packages_found',
         path=str(site_packages),
         dist_info_name=dist_info_name,
+        dist_info_path=str(dist_info_path),
     )
-    return site_packages, dist_info_name
+    return site_packages, dist_info_name, dist_info_path
 
 
 def refresh_package(package_name: str, from_path: Path) -> bool:

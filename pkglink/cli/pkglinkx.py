@@ -117,7 +117,7 @@ def main() -> None:
         context, target_dir = setup_pkglinkx_context()
 
         # Install and validate early to get package info for pyproject.toml generation
-        cache_dir, dist_info_name = install_with_uvx(context.install_spec)
+        cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
 
         # Run the unified workflow which handles both uvx structure and resource symlinks
         # Pass the pre-installed cache to avoid duplicate installation
