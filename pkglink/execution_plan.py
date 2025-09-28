@@ -80,41 +80,37 @@ def _plan_uvx_structure(
         description='Create src/ directory for uvx compatibility',
     )
 
-    try:
-        # Use pre-installed cache if provided, otherwise install now
-        if cache_dir and dist_info_name:
-            logger.debug('using_pre_installed_cache', cache_dir=str(cache_dir))
-            plan.uvx_cache_dir = cache_dir
-        else:
-            # Get cache directory (this might trigger download in planning phase)
-            cache_dir, dist_info_name = install_with_uvx(context.install_spec)
-            plan.uvx_cache_dir = cache_dir
+    # Use pre-installed cache if provided, otherwise install now
+    if cache_dir and dist_info_name:
+        logger.debug('using_pre_installed_cache', cache_dir=str(cache_dir))
+        plan.uvx_cache_dir = cache_dir
+    else:
+        # Get cache directory (this might trigger download in planning phase)
+        cache_dir, dist_info_name = install_with_uvx(context.install_spec)
+        plan.uvx_cache_dir = cache_dir
 
-        # Extract package metadata
-        package_info = extract_package_metadata(
-            cache_dir,
-            dist_info_name,
-        )
-        plan.package_info = package_info
+    # Extract package metadata
+    package_info = extract_package_metadata(
+        cache_dir,
+        dist_info_name,
+    )
+    plan.package_info = package_info
 
-        # Plan package symlink
-        package_source = cache_dir / context.module_name
-        package_symlink = src_dir / context.module_name
-        plan.add_operation(
-            'create_symlink',
-            source_path=package_source,
-            target_path=package_symlink,
-            description=f'Symlink Python module {context.module_name}',
-        )
+    # Plan package symlink
+    package_source = cache_dir / context.module_name
+    package_symlink = src_dir / context.module_name
+    plan.add_operation(
+        'create_symlink',
+        source_path=package_source,
+        target_path=package_symlink,
+        description=f'Symlink Python module {context.module_name}',
+    )
 
-        # Plan pyproject.toml creation
-        _plan_pyproject_file(context, plan, target_dir, package_info)
+    # Plan pyproject.toml creation
+    _plan_pyproject_file(context, plan, target_dir, package_info)
 
-        # Plan metadata file creation
-        _plan_metadata_file(plan, target_dir)
-
-    except Exception as e:  # noqa: BLE001 - broad exception to not halt the CLI
-        logger.warning('failed_to_plan_uvx_structure', error=str(e))
+    # Plan metadata file creation
+    _plan_metadata_file(plan, target_dir)
 
 
 def _plan_pyproject_file(
