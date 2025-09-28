@@ -1,6 +1,7 @@
 """Module for interacting with uvx (uv's tool runner)."""
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -93,7 +94,7 @@ def _extract_dist_info_name(stderr_output: str, expected_package: str) -> str:
     stderr_lines = stderr_output.split('\n')
     for line in stderr_lines:
         if 'Looking at `.dist-info` at:' in line:
-            parts = line.split('/')
+            parts = re.split(r'[\\/]', line)
             if parts and parts[-1].endswith('.dist-info'):
                 dist_info_name = parts[-1]
                 dist_infos.append(dist_info_name)
