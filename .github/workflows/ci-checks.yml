@@ -36,5 +36,7 @@ jobs:
       #   run: poe check-basedpyright
       # - name: check-complexity
       #   run: poe check-complexity
+      - name: check-uvx
+        run: uvx --verbose --force-reinstall --from git+https://github.com/hotdog-werx/toolbelt.git python -c "import site; print(site.getsitepackages()[0])"
       - name: check-coverage
         run: poe check-coverage tests/integration/test_pkglinkx.py::test_pkglinkx[toolbelt_explicit]
