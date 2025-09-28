@@ -160,7 +160,7 @@ def _extract_dependencies_from_cache(
     dependencies = []
 
     # Find all dist-info directories
-    dist_info_dirs = list(cache_dir.glob('*.dist-info'))
+    dist_info_dirs = list(cache_dir.rglob('*.dist-info'))
 
     for dist_info_dir in dist_info_dirs:
         # Parse package name and version from dist-info directory name
