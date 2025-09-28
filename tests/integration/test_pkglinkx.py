@@ -81,6 +81,10 @@ def test_pkglinkx(
     assert result.returncode == 0
     assert 'pkglinkx_completed' in result.stdout
 
+    print('stdout:', result.stdout)
+    print('stderr:', result.stderr)
+    print('log:', result.log)
+
     # Verify .pkglink structure was created
     pkglinkx_dir = test_dir / '.pkglink' / tcase.expect.symlink
     assert_exists_and_type(pkglinkx_dir)
