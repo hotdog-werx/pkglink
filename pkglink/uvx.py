@@ -59,6 +59,23 @@ def _build_site_packages_command(
     return cmd
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize package/dist-info names for matching."""
+    return name.lower().replace('-', '_').replace('.', '_')
+
+
+def _find_dist_info(dist_infos: list[str], expected: str) -> str | None:
+    """Find a dist-info name that matches the expected package name."""
+    normalized_expected = _normalize_name(expected)
+    for dist_info in dist_infos:
+        if _normalize_name(dist_info).startswith(normalized_expected):
+            return dist_info
+    for dist_info in dist_infos:
+        if normalized_expected in _normalize_name(dist_info):
+            return dist_info
+    return None
+
+
 def _extract_dist_info_name(stderr_output: str, expected_package: str) -> str:
     """Extract dist-info directory name for the expected package from uvx verbose stderr output.
 
@@ -86,13 +103,9 @@ def _extract_dist_info_name(stderr_output: str, expected_package: str) -> str:
         dist_infos=dist_infos,
         uvx_stderr_lines=len(stderr_lines),
     )
-    # Try to find a dist-info that starts with the expected package name (case-insensitive)
-    for dist_info in dist_infos:
-        if dist_info.lower().startswith(
-            expected_package.lower().replace('-', '_'),
-        ):
-            return dist_info
-    # If not found, raise a clear error for github sources
+    match = _find_dist_info(dist_infos, expected_package)
+    if match:
+        return match
     error_msg = (
         f"Could not find dist-info for expected package '{expected_package}'.\n"
         'If installing from GitHub, you may need to provide --project-name matching the PyPI/project name.\n'

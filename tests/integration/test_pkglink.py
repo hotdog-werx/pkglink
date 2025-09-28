@@ -117,7 +117,7 @@ class PkgLinkTestCase:
             ],
             expected_from_setup=[
                 Path('index.html'),
-                Path('theme/inner/style.css'),
+                Path('theme') / 'inner' / 'style.css',
             ],
         ),
         PkgLinkTestCase(
@@ -131,7 +131,7 @@ class PkgLinkTestCase:
             ],
             expected_from_setup=[
                 Path('index.html'),
-                Path('theme/inner/style.css'),
+                Path('theme') / 'inner' / 'style.css',
             ],
         ),
         PkgLinkTestCase(
@@ -147,7 +147,7 @@ class PkgLinkTestCase:
             ],
             expected_from_setup=[
                 Path('index.html'),
-                Path('theme/inner/style.css'),
+                Path('theme') / 'inner' / 'style.css',
             ],
         ),
         PkgLinkTestCase(
@@ -161,7 +161,7 @@ class PkgLinkTestCase:
             ],
             expected_from_setup=[
                 Path('index.html'),
-                Path('theme/inner/style.css'),
+                Path('theme') / 'inner' / 'style.css',
             ],
         ),
         PkgLinkTestCase(
@@ -175,7 +175,7 @@ class PkgLinkTestCase:
             ],
             expected_from_setup=[
                 Path('index.html'),
-                Path('theme/inner/style.css'),
+                Path('theme') / 'inner' / 'style.css',
             ],
         ),
     ],
@@ -208,7 +208,7 @@ def test_pkglink(
 
     # Verify expected contents exist in the symlinked directory
     for item in tcase.expected_contents:
-        assert (pkglink_dir / item).exists()
+        assert (pkglink_dir / Path(item)).exists()
 
     if tcase.expected_from_setup is not None:
         for item in tcase.expected_from_setup:
