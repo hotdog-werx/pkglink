@@ -22,13 +22,17 @@ def strip_ansi(text: str) -> str:
 
 def run_uvx(uvx_args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     """Run uvx commands via subprocess for testing."""
-    return subprocess.run(  # noqa: S603 - executing uvx
+    result = subprocess.run(  # noqa: S603 - executing uvx
         ['uvx', *uvx_args],  # noqa: S607 - ensure uvx is explicit
         cwd=cwd,
         capture_output=True,
         text=True,
         check=True,
     )
+    print("STDOUT:", result.stdout)
+    print("STDERR:", result.stderr)
+    print("RETURN CODE:", result.returncode)
+    return result
 
 
 class Result(BaseModel):
