@@ -412,9 +412,8 @@ def _execute_create_file(operation: FileOperation, plan: ExecutionPlan) -> None:
         metadata = _generate_metadata_content(plan)
         with operation.target_path.open('w') as f:
             yaml.dump(metadata, f, default_flow_style=False)
-
     else:
-        logger.warning(
+        logger.warning(  # pragma: no cover - defensive, only if new file types are added
             'no_content_for_file_operation',
             path=str(operation.target_path),
         )

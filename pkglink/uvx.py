@@ -65,18 +65,6 @@ def _normalize_name(name: str) -> str:
     return name.lower().replace('-', '_').replace('.', '_')
 
 
-def _find_dist_info(dist_infos: list[str], expected: str) -> str | None:
-    """Find a dist-info name that matches the expected package name."""
-    normalized_expected = _normalize_name(expected)
-    for dist_info in dist_infos:
-        if _normalize_name(dist_info).startswith(normalized_expected):
-            return dist_info
-    for dist_info in dist_infos:
-        if normalized_expected in _normalize_name(dist_info):
-            return dist_info
-    return None
-
-
 def _extract_dist_info_path(
     stderr_output: str,
     expected_package: str,
