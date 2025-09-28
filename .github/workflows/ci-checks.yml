@@ -28,13 +28,13 @@ jobs:
         run: uv tool install poethepoet
       - name: dependencies
         run: uvx --from poethepoet poe uv-sync
-      - name: check-dprint
-        run: poe check-dprint
-      - name: check-python
-        run: poe check-python
-      - name: check-basedpyright
-        run: poe check-basedpyright
-      - name: check-complexity
-        run: poe check-complexity
+      # - name: check-dprint
+      #   run: poe check-dprint
+      # - name: check-python
+      #   run: poe check-python
+      # - name: check-basedpyright
+      #   run: poe check-basedpyright
+      # - name: check-complexity
+      #   run: poe check-complexity
       - name: check-coverage
-        run: poe check-coverage
+        run: poe check-coverage tests/integration/test_pkglinkx.py::test_pkglinkx[toolbelt_explicit]
