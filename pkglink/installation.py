@@ -351,9 +351,35 @@ def _perform_uvx_installation(
             dist_info_name=dist_info_name,
         )
 
+        # Debug: List contents of site-packages before copying
+        site_packages_items = list(site_packages.iterdir())
+        logger.debug(
+            'site_packages_contents',
+            items=[item.name for item in site_packages_items],
+        )
+
         # Copy the site-packages to our cache directory
         shutil.copytree(site_packages, cache_dir)
 
+        # Check if dist-info is present in site-packages, else copy from parent
+        dist_info_dir = site_packages / dist_info_name
+        if not dist_info_dir.exists():
+            parent_dir = site_packages.parent
+            alt_dist_info_dir = parent_dir / dist_info_name
+            if alt_dist_info_dir.exists():
+                logger.debug(
+                    'copying_dist_info_from_parent',
+                    source=str(alt_dist_info_dir),
+                    destination=str(cache_dir / dist_info_name),
+                )
+                shutil.copytree(alt_dist_info_dir, cache_dir / dist_info_name)
+            else:
+                logger.warning(
+                    'dist_info_not_found_in_site_packages_or_parent',
+                    dist_info_name=dist_info_name,
+                    site_packages=str(site_packages),
+                    parent_dir=str(parent_dir),
+                )
         # Cache the dist_info_name for future use
         _cache_dist_info(cache_dir, dist_info_name)
 
