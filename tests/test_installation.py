@@ -182,7 +182,7 @@ class TestInstallWithUvx:
                 'repo-1.0.0.dist-info',
             )
             result = install_with_uvx(spec)
-            assert result == (cache_dir, 'repo-1.0.0.dist-info')
+            assert result == (cache_dir, 'repo-1.0.0.dist-info', None)
 
     def test_install_with_uvx_command_failure(
         self,
