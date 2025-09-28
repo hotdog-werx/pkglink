@@ -1,153 +1,56 @@
-import argparse
 import re
 from pathlib import Path
 
 from pkglink.logging import get_logger
-from pkglink.models import CliArgs, SourceSpec
-from pkglink.version import __version__
+from pkglink.models import (
+    BaseCliArgs,
+    ParsedSource,
+    PkglinkContext,
+    SourceSpec,
+)
 
 logger = get_logger(__name__)
 
 
-def create_parser() -> argparse.ArgumentParser:
-    """Create the argument parser."""
-    parser = argparse.ArgumentParser(
-        prog='pkglink',
-        description='Create symlinks to directories from repositories and Python packages',
-    )
-
-    parser.add_argument(
-        '--version',
-        action='version',
-        version=f'%(prog)s {__version__}',
-    )
-    parser.add_argument(
-        'source',
-        help='Source specification (github:org/repo, package-name, or local path)',
-    )
-    parser.add_argument(
-        'directory',
-        nargs='?',
-        default='resources',
-        help='Directory to link (default: resources)',
-    )
-    parser.add_argument(
-        '--symlink-name',
-        help='Custom name for the symlink',
-    )
-    parser.add_argument(
-        '--force',
-        action='store_true',
-        help='Overwrite existing symlinks',
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Show what would be done without doing it',
-    )
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Enable verbose logging',
-    )
-    parser.add_argument(
-        '--from',
-        dest='from_package',
-        help='Installable package name (when different from module name)',
-    )
-    parser.add_argument(
-        '--no-setup',
-        action='store_true',
-        help='Skip running post-install setup (pkglink.yaml)',
-    )
-    return parser
-
-
-def parse_args_to_model() -> CliArgs:
-    """Parse command line arguments into a typed Pydantic model."""
-    parser = create_parser()
-    raw_args = parser.parse_args()
-
-    return CliArgs(
-        source=raw_args.source,
-        directory=raw_args.directory,
-        symlink_name=raw_args.symlink_name,
-        force=raw_args.force,
-        dry_run=raw_args.dry_run,
-        verbose=raw_args.verbose,
-        from_package=raw_args.from_package,
-    )
-
-
-def determine_install_spec_and_module(args: CliArgs) -> tuple[SourceSpec, str]:
-    """Determine what to install and which module to look for based on CLI args."""
-    if args.from_package:
-        logger.info(
-            'using_from_option',
-            install_package=args.from_package,
-            module_name=args.source,
+def parse_source(
+    source: ParsedSource,
+    project_name: str | None = None,
+) -> SourceSpec:
+    """Convert a ParsedSource object into a SourceSpec, always setting project_name."""
+    # Ensure required fields are present and fallback to empty string if needed
+    if source.source_type == 'github':
+        return SourceSpec(
+            source_type='github',
+            name=source.repo or '',
+            org=source.org or '',
+            version=source.version,
+            project_name=project_name or source.repo or '',
         )
-        install_spec = parse_source(args.from_package)
-        logger.debug(
-            'parsed_install_spec',
-            name=install_spec.name,
-            source_type=install_spec.source_type,
-            version=install_spec.version,
-            _verbose_install_spec=install_spec.model_dump(),
-        )
-
-        module_name = args.source
-        logger.debug('looking_for_module', module=module_name)
-    else:
-        logger.info('parsing_source_specification', source=args.source)
-        install_spec = parse_source(args.source)
-
-        # For GitHub sources, convert hyphens to underscores for Python module names
-        if install_spec.source_type == 'github':
-            module_name = install_spec.name.replace('-', '_')
-            logger.debug(
-                'converted_github_module_name',
-                repo_name=install_spec.name,
-                module_name=module_name,
-            )
-        else:
-            module_name = install_spec.name
-
-        logger.debug(
-            'parsed_source_spec',
-            name=install_spec.name,
-            source_type=install_spec.source_type,
-            version=install_spec.version,
-            module_name=module_name,
-            _verbose_source_spec=install_spec.model_dump(),
-        )
-
-    return install_spec, module_name
-
-
-def parse_source(source: str) -> SourceSpec:
-    """Parse a source string into a SourceSpec.
-
-    Supports formats:
-    - github:org/repo[@version]
-    - package-name[@version]
-    - ./local/path or /absolute/path
-    """
-    if source.startswith('github:'):
-        return _parse_github_source(source)
-
-    if _is_local_path(source):
+    if source.source_type == 'local':
         return SourceSpec(
             source_type='local',
-            name=_extract_local_name(source),
-            local_path=source,
+            name=source.name or '',
+            local_path=source.local_path or '',
+            project_name=project_name or source.name or '',
         )
+    # package
+    return SourceSpec(
+        source_type='package',
+        name=source.name or '',
+        version=source.version,
+        project_name=project_name or source.name or '',
+    )
 
-    return _parse_package_source(source)
 
+def is_local_path(source: str) -> bool:
+    """Check if the source string represents a local path.
 
-def _is_local_path(source: str) -> bool:
-    """Check if the source string represents a local path."""
+    Args:
+        source: Source string from CLI
+
+    Returns:
+        True if the source is a local path, False otherwise.
+    """
     return (
         source in ('.', './')
         or source.startswith(('./', '/', '~'))
@@ -156,8 +59,15 @@ def _is_local_path(source: str) -> bool:
     )
 
 
-def _extract_local_name(source: str) -> str:
-    """Extract the directory name from a local path."""
+def extract_local_name(source: str) -> str:
+    """Extract the directory name from a local path.
+
+    Args:
+        source: Local path string
+
+    Returns:
+        The name of the directory at the end of the path.
+    """
     # Handle Windows paths on non-Windows systems
     if re.match(r'^[A-Za-z]:[/\\]', source):
         return source.replace('\\', '/').split('/')[-1]
@@ -169,40 +79,29 @@ def _extract_local_name(source: str) -> str:
     return path.name
 
 
-def _parse_github_source(source: str) -> SourceSpec:
-    """Parse a GitHub source specification."""
-    github_match = re.match(r'^github:([^/]+)/([^@/]+)(?:@(.+))?$', source)
-    if not github_match:
-        msg = f'Invalid source format: {source}'
-        raise ValueError(msg)
+def parse_github_source(value: str) -> tuple[ParsedSource | None, str]:
+    """Parse a GitHub source specification.
 
-    org, repo, version = github_match.groups()
-    # Validate that org and repo are not empty
+    Args:
+        value: Source string in the format github:org/repo[@version]
+
+    Returns:
+        A tuple of (ParsedSource or None, error message string).
+    """
+    m = re.match(r'^github:([^/]+)/([^@/]+)(?:@(.+))?$', value)
+    if not m:
+        return None, f'Invalid Github source format: {value}'
+    org, repo, version = m.groups()
     if not org.strip() or not repo.strip():
-        msg = f'Invalid source format: {source}'
-        raise ValueError(msg)
-
-    return SourceSpec(
+        return None, f'Invalid Github source format: {value}'
+    return ParsedSource(
         source_type='github',
-        name=repo.strip(),
-        org=org.strip(),
-        version=version.strip() if version else None,
-    )
-
-
-def _parse_package_source(source: str) -> SourceSpec:
-    """Parse a package source specification."""
-    package_match = re.match(r'^([^@]+)(?:@(.+))?$', source)
-    if not package_match:
-        msg = f'Invalid source format: {source}'
-        raise ValueError(msg)
-
-    name, version = package_match.groups()
-    return SourceSpec(
-        source_type='package',
-        name=name,
+        raw=value,
+        org=org,
+        repo=repo,
         version=version,
-    )
+        name=repo,
+    ), ''
 
 
 def build_uv_install_spec(spec: SourceSpec) -> str:
@@ -224,3 +123,44 @@ def build_uv_install_spec(spec: SourceSpec) -> str:
     # next statements should be unreachable since source_type is validated
     msg = f'Unsupported source type: {spec.source_type}'  # pragma: no cover
     raise ValueError(msg)  # pragma: no cover
+
+
+def create_pkglink_context(args: BaseCliArgs) -> PkglinkContext:
+    """Create a comprehensive context object from CLI arguments.
+
+    Simple logic following uvx pattern:
+    - source: what module/directory to look for (always)
+    - --from: what package to install (when different from source)
+
+    Examples:
+        pkglink mymodule                    # Install and look for 'mymodule'
+        pkglink --from mypackage mymodule   # Install 'mypackage', look for 'mymodule'
+
+    Args:
+        args: CLI arguments from either pkglink or pkglinkx
+
+    Returns:
+        PkglinkContext with all necessary information populated
+    """
+    install_source = args.from_package or args.source
+    install_spec = parse_source(install_source, project_name=args.project_name)
+
+    lookup_name = args.source.name if args.from_package else install_spec.name
+    normalize = install_spec.source_type in ('github', 'local')
+    # Normalize module name for lookup (github/local: hyphens -> underscores)
+    module_name = lookup_name.replace('-', '_') if normalize else lookup_name
+
+    logger.debug(
+        'parsed_source_spec',
+        name=install_spec.name,
+        source_type=install_spec.source_type,
+        version=install_spec.version,
+        module_name=module_name,
+        _verbose_source_spec=install_spec.model_dump(),
+    )
+
+    return PkglinkContext(
+        install_spec=install_spec,
+        module_name=module_name,
+        cli_args=args,
+    )

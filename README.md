@@ -3,6 +3,12 @@
 Create symlinks to python package directories from PyPI packages or GitHub repos
 into your current working directory.
 
+This package provides two complementary tools:
+
+- **`pkglink`**: For accessing resources from any Python package or GitHub repo
+- **`pkglinkx`**: For making GitHub Python projects `uvx`-compatible for CLI
+  execution
+
 ## ⚠️ Requirements
 
 **This tool requires `uv` to be installed on your system.**
@@ -25,24 +31,36 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Overview
 
+### pkglink
+
 `pkglink` is a CLI tool designed for configuration sharing and quick access to
 package resources. It allows you to symlink specific directories (like
 `resources`, `configs`, `templates`) from Python packages directly into your
 current directory without having to install them globally or manually download
 files.
 
+### pkglinkx
+
+`pkglinkx` is designed specifically for GitHub Python repositories. It creates a
+`.pkglink` directory structure that makes any GitHub Python project compatible
+with `uvx` for CLI tool execution, even if the project wasn't originally
+designed for it.
+
 ## Installation
 
 ### Using uvx (Recommended)
 
-Once published, you can use `pkglink` directly with `uvx` without installation:
+Once published, you can use both tools directly with `uvx` without installation:
 
 ```bash
-# Use a specific subdirectory from a package
+# Use pkglink for resource linking
 uvx pkglink --from tbelt toolbelt resources
 
-# Symlink with a custom name
-uvx pkglink --symlink-name .codeguide tbelt resources
+# Use pkglinkx for GitHub repo CLI access
+uvx pkglinkx github:org/awesome-cli-tool
+
+# Then run the CLI tool
+uvx --from .pkglink/awesome-cli-tool some-command
 ```
 
 ### Local Installation
@@ -55,7 +73,9 @@ pip install pkglink
 
 ## Usage
 
-### Basic Examples
+### pkglink - Resource Linking
+
+#### Basic Examples
 
 ```bash
 # Symlink the 'resources' directory from 'mypackage'
@@ -67,6 +87,9 @@ pkglink --from tbelt toolbelt resources
 # Specify a custom symlink name
 pkglink --symlink-name .configs mypackage configs
 
+# Create symlinks inside .pkglink directory (unified with pkglinkx)
+pkglink --inside-pkglink --from tbelt toolbelt resources
+
 # Dry run to see what would happen
 pkglink --dry-run mypackage templates
 
@@ -74,17 +97,62 @@ pkglink --dry-run mypackage templates
 pkglink --force mypackage resources
 ```
 
-### Command Line Options
+#### Command Line Options
 
 - `source`: The package to install (can be PyPI package or GitHub repo)
 - `directory`: The subdirectory within the package to symlink (default:
   "resources")
 - `--from PACKAGE`: Install one package but look for the module in another
-  (useful when the PyPI package name differs from the Python module name)
 - `--symlink-name NAME`: Custom name for the symlink (default: `.{source}`)
+- `--inside-pkglink`: Create symlink inside `.pkglink` directory instead of
+  current directory
 - `--force`: Overwrite existing symlinks/directories
 - `--dry-run`: Show what would be done without making changes
 - `--verbose`: Enable verbose logging
+- `--no-setup`: Skip running post-install setup (pkglink.yaml)
+
+### pkglinkx - GitHub CLI Tools
+
+#### Basic Examples
+
+```bash
+# Make a GitHub repo uvx-compatible (basic usage)
+pkglinkx github:org/awesome-cli-tool
+
+# Then run CLI commands
+uvx --from .pkglink/awesome-cli-tool some-command
+
+# With specific version
+pkglinkx github:org/tool@v1.2.0
+
+# Skip resource linking (CLI tools only)
+pkglinkx --skip-resources github:org/pure-cli-tool
+
+# Custom resource directory and symlink name
+pkglinkx -d configs -s .my-configs github:org/config-tool
+```
+
+#### Command Line Options
+
+- `source`: GitHub repository specification (github:org/repo[@version])
+- `-d, --directory`: Target subdirectory to link (default: "resources")
+- `-s, --symlink-name`: Name for the resource symlink (default: `.{repo-name}`)
+- `--skip-resources`: Skip creating resource symlinks
+- `--verbose`: Enable verbose logging
+
+#### Generated Structure
+
+`pkglinkx` creates a structured `.pkglink` directory:
+
+```
+.pkglink/
+├── awesome-cli-tool/          # Package directory
+│   ├── pyproject.toml         # Generated project file
+│   ├── src/                   # Source code symlink
+│   │   └── awesome_cli_tool/  # → symlinked to cached package
+│   └── .pkglink-metadata.yaml # Metadata for version tracking
+└── .awesome-cli-tool          # Resource symlink (if resources exist)
+```
 
 **Note**: If the target symlink already exists, `pkglink` will skip the
 operation and exit successfully (unless `--force` is used). This makes it safe
@@ -226,15 +294,18 @@ installation:
 
 ## Use Cases
 
-### Configuration Sharing
+### Configuration Sharing (pkglink)
 
 ```bash
 # Share configuration templates across projects
 pkglink --symlink-name .eslintrc my-configs eslint
 pkglink --symlink-name .github my-configs github-workflows
+
+# Unified organization with pkglinkx
+pkglink --inside-pkglink --from tbelt toolbelt resources
 ```
 
-### Resource Access
+### Resource Access (pkglink)
 
 ```bash
 # Access package resources for development
@@ -242,7 +313,7 @@ pkglink --from data-science-toolkit datasets data
 pkglink ml-models pretrained
 ```
 
-### Template Management
+### Template Management (pkglink)
 
 ```bash
 # Quick access to project templates
@@ -250,15 +321,75 @@ pkglink project-templates react
 pkglink --symlink-name .templates cookiecutter-templates django
 ```
 
+### CLI Tool Access (pkglinkx)
+
+```bash
+# Make any GitHub Python project usable as a CLI tool
+pkglinkx github:microsoft/pylint-extensions
+uvx --from .pkglink/pylint-extensions pylint --load-plugins=...
+
+# Development tools
+pkglinkx github:psf/black
+uvx --from .pkglink/black black --version
+
+# Custom CLI tools
+pkglinkx github:myorg/internal-tool
+uvx --from .pkglink/internal-tool tool-command --help
+```
+
+### Unified Workflow
+
+Both tools can work together for complete project setup:
+
+```bash
+# Set up CLI tools
+pkglinkx github:org/awesome-linter
+pkglinkx --skip-resources github:org/code-formatter
+
+# Set up shared resources  
+pkglink --inside-pkglink --from tbelt toolbelt resources
+pkglink --inside-pkglink my-configs eslint
+
+# Now everything is organized under .pkglink/
+ls .pkglink/
+# awesome-linter/  code-formatter/  .tbelt/  .my-configs/
+
+# Use the tools
+uvx --from .pkglink/awesome-linter lint-code
+uvx --from .pkglink/code-formatter format-code
+```
+
 ## Benefits
+
+### pkglink
 
 - **Fast**: Leverages `uvx` caching + additional persistent caching
 - **Reliable**: Uses `uv`'s robust package installation with multiple fallback
-  strategies for package discovery
+  strategies
 - **Flexible**: Supports PyPI packages, GitHub repos, and local paths
 - **Safe**: Dry-run mode and intelligent conflict detection
+- **Organized**: Optional `--inside-pkglink` for unified structure with pkglinkx
 - **Convenient**: Can be used with `uvx` without installation
 - **Authenticated**: Inherits all `uv` authentication for private repositories
+
+### pkglinkx
+
+- **Universal**: Makes any GitHub Python project uvx-compatible
+- **Automatic**: Generates proper `pyproject.toml` from package metadata
+- **Cross-platform**: Uses robust symlink creation with Windows fallback
+- **Version-aware**: Tracks and refreshes mutable references (branches)
+- **Resource-friendly**: Optional resource directory linking
+- **CLI-focused**: Optimized for command-line tool usage
+- **Standards-compliant**: Creates proper Python package structure
+
+### Combined
+
+- **Unified Organization**: Both tools can create symlinks in `.pkglink/`
+  directory
+- **Comprehensive**: Covers both resource access and CLI tool execution
+- **Consistent**: Shared authentication, caching, and safety features
+- **Scalable**: Supports everything from single configs to complex multi-tool
+  setups
 
 ## Requirements
 

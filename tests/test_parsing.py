@@ -1,19 +1,11 @@
 """Tests for pkglink parsing functionality."""
 
-import io
-import sys
 from dataclasses import dataclass
 
 import pytest
 
-from pkglink.models import CliArgs, SourceSpec
-from pkglink.parsing import (
-    build_uv_install_spec,
-    create_parser,
-    determine_install_spec_and_module,
-    parse_source,
-)
-from pkglink.version import __version__
+from pkglink.argparse import argparse_source
+from pkglink.models import SourceSpec
 
 
 @dataclass
@@ -89,196 +81,9 @@ class TestParseSource:
     )
     def test_parse_source_valid(self, case: ParseTestCase) -> None:
         """Test parsing valid source specifications."""
-        result = parse_source(case.source)
+        result = argparse_source(case.source)
 
         assert result.source_type == case.expected_type
         assert result.name == case.expected_name
         assert result.org == case.expected_org
         assert result.version == case.expected_version
-
-    @pytest.mark.parametrize(
-        'invalid_source',
-        [
-            '',
-            'github:',
-            'github:org/',
-            'github:/repo',
-            'github:org/repo/',  # Extra slash
-            'github:/org/repo',  # Leading slash
-            'github:org/repo/extra',  # Extra path component
-            '@version',  # Invalid format starting with @
-            'github: /repo',  # Empty org after stripping
-        ],
-    )
-    def test_parse_source_invalid(self, invalid_source: str) -> None:
-        """Test parsing invalid source specifications."""
-        with pytest.raises(ValueError, match='Invalid source format'):
-            parse_source(invalid_source)
-
-
-class TestDetermineInstallSpecAndModule:
-    """Tests for determine_install_spec_and_module function."""
-
-    def test_without_from_option(self) -> None:
-        """Test parsing without --from option."""
-        args = CliArgs(
-            source='mypackage',
-            directory='resources',
-            dry_run=False,
-            force=False,
-            verbose=False,
-            symlink_name=None,
-        )
-
-        install_spec, module_name = determine_install_spec_and_module(args)
-
-        assert install_spec.source_type == 'package'
-        assert install_spec.name == 'mypackage'
-        assert module_name == 'mypackage'
-
-    def test_with_from_option(self) -> None:
-        """Test parsing with --from option."""
-        args = CliArgs(
-            source='mymodule',
-            directory='resources',
-            dry_run=False,
-            force=False,
-            verbose=False,
-            symlink_name=None,
-            from_package='mypackage@1.0.0',
-        )
-
-        install_spec, module_name = determine_install_spec_and_module(args)
-
-        assert install_spec.source_type == 'package'
-        assert install_spec.name == 'mypackage'
-        assert install_spec.version == '1.0.0'
-        assert module_name == 'mymodule'
-
-    def test_with_from_option_github(self) -> None:
-        """Test parsing with --from option using GitHub source."""
-        args = CliArgs(
-            source='mymodule',
-            directory='resources',
-            dry_run=False,
-            force=False,
-            verbose=False,
-            symlink_name=None,
-            from_package='github:myorg/myrepo@v1.0.0',
-        )
-
-        install_spec, module_name = determine_install_spec_and_module(args)
-
-        assert install_spec.source_type == 'github'
-        assert install_spec.name == 'myrepo'
-        assert install_spec.org == 'myorg'
-        assert install_spec.version == 'v1.0.0'
-        assert module_name == 'mymodule'
-
-    def test_github_source_hyphen_to_underscore_conversion(self) -> None:
-        """Test that GitHub source names with hyphens are converted to underscores for module names."""
-        args = CliArgs(
-            source='github:myorg/my-package-name',
-            directory='resources',
-            dry_run=False,
-            force=False,
-            verbose=False,
-            symlink_name=None,
-        )
-
-        install_spec, module_name = determine_install_spec_and_module(args)
-
-        assert install_spec.source_type == 'github'
-        assert install_spec.name == 'my-package-name'  # Original repo name preserved
-        assert install_spec.org == 'myorg'
-        assert module_name == 'my_package_name'  # Converted to underscore for Python module
-
-    def test_package_source_no_conversion(self) -> None:
-        """Test that package source names are not converted (hyphens are valid in package names)."""
-        args = CliArgs(
-            source='my-package-name',
-            directory='resources',
-            dry_run=False,
-            force=False,
-            verbose=False,
-            symlink_name=None,
-        )
-
-        install_spec, module_name = determine_install_spec_and_module(args)
-
-        assert install_spec.source_type == 'package'
-        assert install_spec.name == 'my-package-name'
-        assert module_name == 'my-package-name'  # No conversion for package sources
-
-
-class TestBuildUVInstallSpec:
-    """Tests for build_uv_install_spec function."""
-
-    @pytest.mark.parametrize(
-        'case',
-        [
-            UVSpecTestCase(
-                spec=SourceSpec(source_type='github', name='repo', org='org'),
-                expected='git+https://github.com/org/repo.git',
-            ),
-            UVSpecTestCase(
-                spec=SourceSpec(
-                    source_type='github',
-                    name='repo',
-                    org='org',
-                    version='v1.0',
-                ),
-                expected='git+https://github.com/org/repo.git@v1.0',
-            ),
-            UVSpecTestCase(
-                spec=SourceSpec(source_type='package', name='mypackage'),
-                expected='mypackage',
-            ),
-            UVSpecTestCase(
-                spec=SourceSpec(
-                    source_type='package',
-                    name='mypackage',
-                    version='1.0.0',
-                ),
-                expected='mypackage==1.0.0',
-            ),
-        ],
-    )
-    def test_build_uv_install_spec_valid(self, case: UVSpecTestCase) -> None:
-        """Test building UV install specs for valid sources."""
-        result = build_uv_install_spec(case.spec)
-        assert result == case.expected
-
-    def test_build_uv_install_spec_local_returns_path(self) -> None:
-        """Test that local sources return a valid path."""
-        spec = SourceSpec(source_type='local', name='localpath')
-        result = build_uv_install_spec(spec)
-        assert isinstance(result, str)
-        assert 'localpath' in result
-
-
-class TestVersionOption:
-    """Tests for --version option."""
-
-    def test_version_option_displays_version(self) -> None:
-        """Test that --version displays the correct version."""
-        parser = create_parser()
-
-        # Capture the output from --version
-        old_stdout = sys.stdout
-        captured_output = io.StringIO()
-        sys.stdout = captured_output
-
-        try:
-            with pytest.raises(SystemExit) as exc_info:
-                parser.parse_args(['--version'])
-        finally:
-            sys.stdout = old_stdout
-
-        # argparse --version exits with code 0
-        assert exc_info.value.code == 0
-
-        # Check that version is in the captured output
-        output = captured_output.getvalue()
-        assert __version__ in output
-        assert 'pkglink' in output

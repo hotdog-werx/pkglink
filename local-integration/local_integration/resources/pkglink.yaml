@@ -1,0 +1,5 @@
+symlinks:
+  - source: docs/index.html
+    target: index.html
+  - source: docs/style.css
+    target: theme/inner/style.css

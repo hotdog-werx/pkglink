@@ -1,0 +1,27 @@
+[project]
+name = "python-project"
+description = ""
+authors = [{ name = "hotdog-werx" }]
+readme = "README.md"
+license = 'MIT'
+requires-python = ">=3.11"
+dynamic = ["version"]
+
+dependencies = [
+  'pydantic>=2.0.0',
+]
+
+[project.scripts]
+test-cli = "module_name.main:main"
+
+[dependency-groups]
+dev = []
+
+[tool.hatch]
+build.packages = ["module_name"]
+metadata.allow-direct-references = true
+version.path = 'module_name/version.py'
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
