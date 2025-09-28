@@ -96,8 +96,20 @@ def _plan_uvx_structure(
     )
     plan.package_info = package_info
 
-    # Plan package symlink
+    # Plan package symlink (robust search for module directory)
     package_source = cache_dir / context.module_name
+    if not package_source.exists():
+        # Try to find the module recursively (e.g., in Lib/site-packages)
+        found = None
+        for subdir in cache_dir.rglob(context.module_name):
+            if subdir.is_dir():
+                found = subdir
+                logger.debug('using_exact_package_dir_from_recursive_search', found=str(found))
+                break
+        if found:
+            package_source = found
+        else:
+            logger.error('package_source_not_found', attempted=str(package_source), cache_dir=str(cache_dir))
     package_symlink = src_dir / context.module_name
     plan.add_operation(
         'create_symlink',
