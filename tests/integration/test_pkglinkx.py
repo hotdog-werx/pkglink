@@ -32,6 +32,7 @@ class PkgLinkxTestCase:
                 '--from=github:hotdog-werx/toolbelt',
                 '--project-name=tbelt',
                 'toolbelt',
+                '--verbose',
             ],
             expect=PkgLinkExpected(
                 module='toolbelt',
