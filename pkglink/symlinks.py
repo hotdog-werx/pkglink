@@ -47,7 +47,13 @@ def supports_symlinks() -> bool:
     return _can_create_symlink_in_tmpdir()  # pragma: no cover - Windows-specific
 
 
-def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
+def create_symlink(
+    source: Path,
+    target: Path,
+    *,
+    force: bool = False,
+    allow_additional_symlink_removal: bool = False,
+) -> bool:
     """Create a symlink from target to source.
 
     Returns True if symlink was created, False if fallback copy was used.
@@ -62,7 +68,11 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
     if target.exists():
         if force:
             logger.info('removing_existing_target', target=str(target))
-            remove_target(target, expected_name=target.name)
+            remove_target(
+                target,
+                expected_name=target.name,
+                allow_additional_symlink_removal=allow_additional_symlink_removal,
+            )
         else:
             logger.error('target_already_exists', target=str(target))
             msg = f'Target already exists: {target}'
@@ -75,12 +85,16 @@ def create_symlink(source: Path, target: Path, *, force: bool = False) -> bool:
 
     if supports_symlinks():
         logger.debug('creating_symlink_using_os_symlink')
+        # Ensure parent directories exist for the target
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(source, target_is_directory=source.is_dir())
         logger.info('symlink_created_successfully')
         return True
 
     # Fallback to copying
     logger.debug('symlinks_not_supported_falling_back_to_copy')
+    # Ensure parent directories exist for the target
+    target.parent.mkdir(parents=True, exist_ok=True)
     if source.is_dir():
         logger.debug('copying_directory_tree')
         shutil.copytree(source, target)
@@ -108,17 +122,6 @@ def _check_not_dot_or_dotdot(
             resolved_name=resolved_name,
         )
         msg = f"Refusing to remove '{resolved_name}' (resolved from {target})"
-        raise ValueError(msg)
-
-
-def _check_dot_prefix(target_name: str, target: Path) -> None:
-    if not target_name.startswith('.'):
-        logger.error(
-            'refusing_to_remove_target_without_dot_prefix',
-            target=str(target),
-            target_name=target_name,
-        )
-        msg = f'Refusing to remove target without dot prefix: {target}'
         raise ValueError(msg)
 
 
@@ -153,22 +156,63 @@ def _check_path_traversal(target_name: str, target: Path) -> None:
         raise ValueError(msg)
 
 
-def remove_target(target: Path, *, expected_name: str) -> None:
+def _check_common_removal_safety(target: Path) -> None:
+    cwd = Path.cwd().resolve()
+    # Check the symlink's location, not its resolved destination
+    if not str(target).startswith(str(cwd)):
+        msg = f'Refusing to remove target outside working directory: {target}'
+        raise ValueError(msg)
+    if any(part == '.git' for part in target.parts):
+        msg = 'Refusing to remove .git directory or its contents'
+        raise ValueError(msg)
+
+
+def _check_additional_symlink_removal(target: Path) -> None:
+    if not target.is_symlink():
+        msg = 'Refusing to remove non-symlink for additional link'
+        raise ValueError(msg)
+
+
+def _check_normal_removal(
+    target_name: str,
+    target: Path,
+    resolved_name: str,
+    resolved_target: Path,
+    expected_name: str,
+) -> None:
+    _check_not_dot_or_dotdot(resolved_name, target, resolved_target)
+    _check_name_match(target_name, expected_name, target)
+    _check_path_traversal(target_name, target)
+
+
+def remove_target(
+    target: Path,
+    *,
+    expected_name: str,
+    allow_additional_symlink_removal: bool = False,
+) -> None:
     """Remove a target file or directory (symlink or copy).
 
     Safety checks:
-    1. Target name must start with '.' to prevent accidental deletion of user directories
-    2. Target name must exactly match expected_name to prevent path traversal attacks
-    3. After resolving, refuse to remove '.' or '..' to prevent dangerous removals
+    1. Target must be inside cwd
+    2. Never remove .git or its contents
+    3. For additional symlinks: must be symlink, skip other checks
+    4. For normal: run all checks
     """
     target_name = target.name
     resolved_target = target.resolve()
     resolved_name = resolved_target.name
-
-    _check_not_dot_or_dotdot(resolved_name, target, resolved_target)
-    _check_dot_prefix(target_name, target)
-    _check_name_match(target_name, expected_name, target)
-    _check_path_traversal(target_name, target)
+    _check_common_removal_safety(target)
+    if allow_additional_symlink_removal:
+        _check_additional_symlink_removal(target)
+    else:
+        _check_normal_removal(
+            target_name,
+            target,
+            resolved_name,
+            resolved_target,
+            expected_name,
+        )
 
     logger.debug('removing_target', target=str(target), target_name=target_name)
     if target.is_symlink():
@@ -187,16 +231,3 @@ def remove_target(target: Path, *, expected_name: str) -> None:
         'target_does_not_exist_or_unrecognized_type',
         target=str(target),
     )
-
-
-def is_managed_link(target: Path) -> bool:
-    """Check if a path appears to be a pkglink-managed symlink."""
-    return target.name.startswith('.') and (target.is_symlink() or target.is_dir())
-
-
-def list_managed_links(directory: Path | None = None) -> list[Path]:
-    """List all potential pkglink-managed links in a directory."""
-    if directory is None:
-        directory = Path.cwd()
-
-    return [item for item in directory.iterdir() if is_managed_link(item)]

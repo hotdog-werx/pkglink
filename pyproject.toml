@@ -14,11 +14,12 @@ dependencies = [
   "structlog>=25.4.0, <26",
   "rich>=14.0.0, <15",
   "argcomplete>=3.6.2, <4",
+  "tomli-w>=1.2.0",
 ]
 
 [project.scripts]
-pkglink = "pkglink.main:main"
-pkglinkx = "pkglink.pkglinkx:main"
+pkglink = "pkglink.cli.pkglink:main"
+pkglinkx = "pkglink.cli.pkglinkx:main"
 
 [dependency-groups]
 dev = [

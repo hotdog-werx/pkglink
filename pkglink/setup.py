@@ -45,7 +45,12 @@ def _create_additional_symlink(
     """Create a single additional symlink from the configuration."""
     source = linked_path / spec.source
     target = base_dir / spec.target
-    create_symlink(source, target, force=True)
+    create_symlink(
+        source,
+        target,
+        force=True,
+        allow_additional_symlink_removal=True,
+    )
 
 
 def _process_symlinks(
@@ -60,12 +65,9 @@ def _process_symlinks(
 
 def run_post_install_setup(
     linked_path: Path,
-    base_dir: Path | None = None,
+    base_dir: Path,
 ) -> None:
     """Run post-install setup for a linked package."""
-    if base_dir is None:
-        base_dir = Path.cwd()
-
     config_path = _find_config_file(linked_path)
     if not config_path:
         logger.debug(
@@ -84,7 +86,7 @@ def run_post_install_setup(
             'post_install_setup_completed',
             symlinks_created=len(config.symlinks),
         )
-    except Exception as e:
-        logger.exception('post_install_setup_failed', error=str(e))
-        msg = 'Post-install setup failed'
-        raise RuntimeError(msg) from e
+    except Exception as e:  # noqa: BLE001 - broad exception to catch all setup errors
+        # A bad setup configuration should not block the main install
+        # But we may need to add a flag later to make this stricter
+        logger.warning('post_install_setup_failed', error=str(e))

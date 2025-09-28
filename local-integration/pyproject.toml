@@ -1,0 +1,27 @@
+[project]
+name = "local-integration"
+description = ""
+authors = [{ name = "hotdog-werx" }]
+readme = "README.md"
+license = 'MIT'
+requires-python = ">=3.11"
+dynamic = ["version"]
+
+dependencies = [
+  'pydantic>=2.0.0',
+]
+
+[project.scripts]
+test-cli = "local_integration.main:main"
+
+[dependency-groups]
+dev = []
+
+[tool.hatch]
+build.packages = ["local_integration"]
+metadata.allow-direct-references = true
+version.path = 'local_integration/version.py'
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
