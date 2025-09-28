@@ -61,9 +61,8 @@ def test_local_install_with_from_module_name(
     )
     assert result.returncode == 0
     step3_snippets = [
-        'package_subdir_not_found',
-        'use of --from may be needed to specify correct module',
         'no_package_subdir_found_skipping_resource_symlink',
+        'use of --from may be needed to specify correct module',
         'next_steps',
     ]
     assert_contains_all(
