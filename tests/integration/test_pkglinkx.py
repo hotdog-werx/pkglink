@@ -351,3 +351,24 @@ def test_pkglinkx_install_twice(
     result = run_pkglinkx(spec_1, test_dir)
     assert result.returncode == 0
     assert 'pkglinkx_completed' in result.stdout
+
+
+def test_pkglinkx_pyproject_dependencies(tmp_path: Path, run_pkglinkx: CliCommand):
+    """Test that pyproject.toml for pkglink-integration-pkg includes dependencies."""
+    test_dir = tmp_path / 'pyproject_deps_test'
+    test_dir.mkdir()
+
+    repo_name = 'pkglink-integration-pkg'
+    spec = [f'github:hotdog-werx/{repo_name}@v0.0.1']
+
+    result = run_pkglinkx(spec, test_dir)
+    assert result.returncode == 0
+
+    pyproject_file = test_dir / '.pkglink' / repo_name / 'pyproject.toml'
+    assert pyproject_file.exists()
+
+    pyproject_text = pyproject_file.read_text()
+    # Check for [project] section and dependencies
+    assert '[project]' in pyproject_text
+    assert 'dependencies' in pyproject_text
+    assert 'pydantic' in pyproject_text
