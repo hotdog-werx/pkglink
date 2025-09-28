@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pytest_mock import MockerFixture
 
-from .conftest import CliCommand, run_uvx
+from .conftest import CliCommand, assert_exists_and_type, run_uvx
 
 
 @dataclass
@@ -83,17 +83,17 @@ def test_pkglinkx(
 
     # Verify .pkglink structure was created
     pkglinkx_dir = test_dir / '.pkglink' / tcase.expect.symlink
-    assert pkglinkx_dir.exists()
+    assert_exists_and_type(pkglinkx_dir)
 
     # Verify expected contents exist in the symlinked directory
     for item in tcase.expect.contents:
-        assert (pkglinkx_dir / item).exists()
+        assert_exists_and_type(pkglinkx_dir / item)
 
     module_dir = test_dir / '.pkglink' / tcase.expect.project_name
-    assert module_dir.exists()
-    assert (module_dir / 'pyproject.toml').exists()
-    assert (module_dir / '.pkglink-metadata.yaml').exists()
-    assert (module_dir / 'src' / tcase.expect.module).exists()
+    assert_exists_and_type(module_dir)
+    assert_exists_and_type(module_dir / 'pyproject.toml')
+    assert_exists_and_type(module_dir / '.pkglink-metadata.yaml')
+    assert_exists_and_type(module_dir / 'src' / tcase.expect.module)
 
 
 def test_pkglinkx_dry_run(tmp_path: Path, run_pkglinkx: CliCommand) -> None:
@@ -188,10 +188,7 @@ def test_pkglinkx_switch_back(tmp_path: Path, run_pkglinkx: CliCommand):
 
     # Verify .pkglink structure was created
     pkglink_dir = test_dir / '.pkglink' / repo_name
-    assert pkglink_dir.exists()
-    assert (pkglink_dir / 'pyproject.toml').exists()
-    assert (pkglink_dir / '.pkglink-metadata.yaml').exists()
-    assert (pkglink_dir / 'src' / 'pkglink_integration_pkg').exists()
+    assert_exists_and_type(pkglink_dir)
 
     # Test CLI execution for first version
     cli_result = run_uvx(
@@ -337,10 +334,7 @@ def test_pkglinkx_install_twice(
 
     # Verify .pkglink structure was created
     pkglink_dir = test_dir / '.pkglink' / repo_name
-    assert pkglink_dir.exists()
-    assert (pkglink_dir / 'pyproject.toml').exists()
-    assert (pkglink_dir / '.pkglink-metadata.yaml').exists()
-    assert (pkglink_dir / 'src' / 'pkglink_integration_pkg').exists()
+    assert_exists_and_type(pkglink_dir)
     # Fallback: should be a directory, not a symlink
     if supports_symlinks:
         assert (pkglink_dir / 'src' / 'pkglink_integration_pkg').is_symlink()

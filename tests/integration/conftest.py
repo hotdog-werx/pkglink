@@ -132,3 +132,12 @@ def assert_contains_all(output: str, snippets: list[str], context: str = ''):
         pytest.fail(
             f'Missing expected snippet(s) in {context}: {missing}\nActual output:\n{output}',
         )
+
+
+def assert_exists_and_type(target: Path):
+    target = target.resolve()
+    assert target.exists(), f'Missing expected item: {target}'
+    if hasattr(target, 'is_symlink'):
+        if target.is_symlink():
+            return
+        assert target.is_dir() or target.is_file(), f'Expected symlink or copy for {target}'

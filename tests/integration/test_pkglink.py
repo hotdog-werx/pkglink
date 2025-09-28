@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import CliCommand
+from .conftest import CliCommand, assert_exists_and_type
 
 
 @dataclass
@@ -14,15 +14,6 @@ class PkgLinkTestCase:
     expected_symlink: str
     expected_contents: list[Path]
     expected_from_setup: list[Path] | None = None
-
-
-def _assert_exists_and_type(target: Path) -> None:
-    target = target.resolve()
-    assert target.exists(), f'Missing expected item: {target}'
-    if hasattr(target, 'is_symlink'):
-        if target.is_symlink():
-            return  # Symlink created
-        assert target.is_dir() or target.is_file(), f'Expected symlink or copy for {target}'
 
 
 @pytest.mark.parametrize(
@@ -217,11 +208,11 @@ def test_pkglink(
 
     # Verify expected contents exist in the symlinked directory
     for item in tcase.expected_contents:
-        _assert_exists_and_type(pkglink_dir / item)
+        assert_exists_and_type(pkglink_dir / item)
 
     if tcase.expected_from_setup:
         for item in tcase.expected_from_setup:
-            _assert_exists_and_type(test_dir / item)
+            assert_exists_and_type(test_dir / item)
 
 
 def test_pkglink_dry_run(tmp_path: Path, run_pkglink: CliCommand) -> None:
@@ -310,7 +301,9 @@ def test_pkglink_self_link(tmp_path: Path, run_pkglink: CliCommand) -> None:
     # Verify no symlink was created
     link_dir = local_integration_dst / '.local-integration'
     assert link_dir.exists()
-    _assert_exists_and_type(link_dir / 'docs' / 'index.html')
-    _assert_exists_and_type(link_dir / 'docs' / 'style.css')
-    _assert_exists_and_type(local_integration_dst / 'index.html')
-    _assert_exists_and_type(local_integration_dst / 'theme' / 'inner' / 'style.css')
+    assert_exists_and_type(link_dir / 'docs' / 'index.html')
+    assert_exists_and_type(link_dir / 'docs' / 'style.css')
+    assert_exists_and_type(local_integration_dst / 'index.html')
+    assert_exists_and_type(
+        local_integration_dst / 'theme' / 'inner' / 'style.css',
+    )
