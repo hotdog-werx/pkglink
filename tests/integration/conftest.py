@@ -60,7 +60,7 @@ def _run_command(ctx: RunCommandContext) -> Result:
     try:
         os.chdir(ctx.cwd)
         ctx.mocker.patch.object(sys, 'argv', [ctx.cli_name, *ctx.args])
-        ctx.caplog.set_level(logging.INFO)
+        ctx.caplog.set_level(logging.DEBUG)
         try:
             exit_code = ctx.main_func()
         except SystemExit as e:

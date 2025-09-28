@@ -29,10 +29,10 @@ class PkgLinkxTestCase:
         PkgLinkxTestCase(
             name='toolbelt_explicit',
             pkglinkx_args=[
+                '--verbose',
                 '--from=github:hotdog-werx/toolbelt',
                 '--project-name=tbelt',
                 'toolbelt',
-                '--verbose',
             ],
             expect=PkgLinkExpected(
                 module='toolbelt',
@@ -85,6 +85,8 @@ def test_pkglinkx(
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     print('log:', result.log)
+
+    assert 1 == 0
 
     # Verify .pkglink structure was created
     pkglinkx_dir = test_dir / '.pkglink' / tcase.expect.symlink
