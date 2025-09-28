@@ -77,7 +77,10 @@ def _find_dist_info(dist_infos: list[str], expected: str) -> str | None:
     return None
 
 
-def _extract_dist_info_path(stderr_output: str, expected_package: str) -> tuple[str, Path]:
+def _extract_dist_info_path(
+    stderr_output: str,
+    expected_package: str,
+) -> tuple[str, Path]:
     """Extract dist-info directory name and full path for the expected package from uvx verbose stderr output.
 
     Args:
@@ -98,7 +101,7 @@ def _extract_dist_info_path(stderr_output: str, expected_package: str) -> tuple[
             match = re.search(r'at: (.*[\\/][^\\/]+\.dist-info)', line)
             if match:
                 full_path = match.group(1).strip()
-                dist_info_name = full_path.split(os.sep)[-1] if os.sep in full_path else full_path.split('/')[-1]
+                dist_info_name = Path(full_path).parts[-1]
                 dist_info_candidates.append((dist_info_name, Path(full_path)))
 
     logger.debug(
@@ -160,7 +163,10 @@ def get_site_packages_path(
         raise RuntimeError(msg)
 
     site_packages = Path(result.stdout.strip())
-    dist_info_name, dist_info_path = _extract_dist_info_path(result.stderr, expected_package)
+    dist_info_name, dist_info_path = _extract_dist_info_path(
+        result.stderr,
+        expected_package,
+    )
 
     logger.debug(
         'uvx_site_packages_found',

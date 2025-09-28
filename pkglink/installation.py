@@ -228,7 +228,9 @@ def resolve_source_path(
 
     # Use uvx to install the package
     logger.debug('attempting_uvx_installation')
-    install_dir, _, _ = install_with_uvx(spec)  # We don't need dist_info_name or dist_info_path here
+    install_dir, _, _ = install_with_uvx(
+        spec,
+    )  # We don't need dist_info_name or dist_info_path here
     package_root = find_package_root(install_dir, target_module, target_subdir)
     logger.debug('successfully_resolved_via_uvx', path=str(package_root))
     return package_root
@@ -369,7 +371,11 @@ def _perform_uvx_installation(
                 source=str(dist_info_path),
                 destination=str(cache_dir / dist_info_name),
             )
-            shutil.copytree(dist_info_path, cache_dir / dist_info_name, dirs_exist_ok=True)
+            shutil.copytree(
+                dist_info_path,
+                cache_dir / dist_info_name,
+                dirs_exist_ok=True,
+            )
         else:
             logger.warning(
                 'dist_info_path_not_found',

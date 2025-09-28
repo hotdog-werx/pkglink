@@ -82,10 +82,6 @@ def test_pkglinkx(
     assert result.returncode == 0
     assert 'pkglinkx_completed' in result.stdout
 
-    print('stdout:', result.stdout)
-    print('stderr:', result.stderr)
-    print('log:', result.log)
-
     # Verify .pkglink structure was created
     pkglinkx_dir = test_dir / '.pkglink' / tcase.expect.symlink
     assert_exists_and_type(pkglinkx_dir)
@@ -353,7 +349,10 @@ def test_pkglinkx_install_twice(
     assert 'pkglinkx_completed' in result.stdout
 
 
-def test_pkglinkx_pyproject_dependencies(tmp_path: Path, run_pkglinkx: CliCommand):
+def test_pkglinkx_pyproject_dependencies(
+    tmp_path: Path,
+    run_pkglinkx: CliCommand,
+):
     """Test that pyproject.toml for pkglink-integration-pkg includes dependencies."""
     test_dir = tmp_path / 'pyproject_deps_test'
     test_dir.mkdir()

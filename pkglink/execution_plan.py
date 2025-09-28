@@ -64,52 +64,92 @@ def _plan_uvx_structure(
     if not context.inside_pkglink:
         return
 
-    # Plan uvx structure creation
+    target_dir, src_dir = _plan_uvx_directories(context, plan, base_dir)
+    cache_dir, dist_info_name = _plan_uvx_cache(
+        context,
+        plan,
+        cache_dir,
+        dist_info_name,
+    )
+    package_info = _plan_uvx_metadata(plan, cache_dir, dist_info_name)
+    _plan_uvx_symlink(context, plan, cache_dir, src_dir)
+    _plan_pyproject_file(context, plan, target_dir, package_info)
+    _plan_metadata_file(plan, target_dir)
+
+
+def _plan_uvx_directories(
+    context: PkglinkContext,
+    plan: ExecutionPlan,
+    base_dir: Path,
+) -> tuple[Path, Path]:
     target_dir = base_dir / context.install_spec.project_name
     plan.add_operation(
         'create_directory',
         target_path=target_dir,
         description=f'Create target directory for {context.get_display_name()}',
     )
-
-    # Plan src directory structure
     src_dir = target_dir / 'src'
     plan.add_operation(
         'create_directory',
         target_path=src_dir,
         description='Create src/ directory for uvx compatibility',
     )
+    return target_dir, src_dir
 
-    # Use pre-installed cache if provided, otherwise install now
+
+def _plan_uvx_cache(
+    context: PkglinkContext,
+    plan: ExecutionPlan,
+    cache_dir: Path | None,
+    dist_info_name: str | None,
+) -> tuple[Path, str]:
     if cache_dir and dist_info_name:
         logger.debug('using_pre_installed_cache', cache_dir=str(cache_dir))
         plan.uvx_cache_dir = cache_dir
     else:
-        # Get cache directory (this might trigger download in planning phase)
         cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
         plan.uvx_cache_dir = cache_dir
+    return cache_dir, dist_info_name
 
-    # Extract package metadata
+
+def _plan_uvx_metadata(
+    plan: ExecutionPlan,
+    cache_dir: Path,
+    dist_info_name: str,
+) -> PackageInfo:
     package_info = extract_package_metadata(
         cache_dir,
         dist_info_name,
     )
     plan.package_info = package_info
+    return package_info
 
-    # Plan package symlink (robust search for module directory)
+
+def _plan_uvx_symlink(
+    context: PkglinkContext,
+    plan: ExecutionPlan,
+    cache_dir: Path,
+    src_dir: Path,
+) -> Path:
     package_source = cache_dir / context.module_name
     if not package_source.exists():
-        # Try to find the module recursively (e.g., in Lib/site-packages)
         found = None
         for subdir in cache_dir.rglob(context.module_name):
             if subdir.is_dir():
                 found = subdir
-                logger.debug('using_exact_package_dir_from_recursive_search', found=str(found))
+                logger.debug(
+                    'using_exact_package_dir_from_recursive_search',
+                    found=str(found),
+                )
                 break
         if found:
             package_source = found
         else:
-            logger.error('package_source_not_found', attempted=str(package_source), cache_dir=str(cache_dir))
+            logger.error(
+                'package_source_not_found',
+                attempted=str(package_source),
+                cache_dir=str(cache_dir),
+            )
     package_symlink = src_dir / context.module_name
     plan.add_operation(
         'create_symlink',
@@ -117,12 +157,7 @@ def _plan_uvx_structure(
         target_path=package_symlink,
         description=f'Symlink Python module {context.module_name}',
     )
-
-    # Plan pyproject.toml creation
-    _plan_pyproject_file(context, plan, target_dir, package_info)
-
-    # Plan metadata file creation
-    _plan_metadata_file(plan, target_dir)
+    return package_source
 
 
 def _plan_pyproject_file(
