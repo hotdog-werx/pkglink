@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import yaml
+from hotlog import get_logger
 
 from pkglink.argparse import parse_pkglinkx_args
 from pkglink.cli.common import (
@@ -13,7 +14,6 @@ from pkglink.cli.common import (
     unified_workflow,
 )
 from pkglink.installation import install_with_uvx
-from pkglink.logging import get_logger
 from pkglink.models import PkglinkContext
 from pkglink.uvx import refresh_package
 

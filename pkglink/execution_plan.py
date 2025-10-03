@@ -2,13 +2,13 @@ import hashlib
 from pathlib import Path
 
 import yaml
+from hotlog import get_logger
 
 from pkglink.installation import (
     find_package_root,
     install_with_uvx,
     resolve_source_path,
 )
-from pkglink.logging import get_logger
 from pkglink.models import (
     ExecutionPlan,
     FileOperation,

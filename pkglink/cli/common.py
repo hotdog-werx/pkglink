@@ -4,11 +4,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from hotlog import configure_logging, get_logger
+
 from pkglink.execution_plan import (
     execute_plan,
     generate_execution_plan,
 )
-from pkglink.logging import configure_logging, get_logger
 from pkglink.models import BaseCliArgs, ExecutionPlan, PkglinkContext
 from pkglink.parsing import create_pkglink_context
 from pkglink.setup import run_post_install_setup
@@ -16,9 +17,9 @@ from pkglink.setup import run_post_install_setup
 logger = get_logger(__name__)
 
 
-def setup_logging_and_handle_errors(*, verbose: bool) -> None:
+def setup_logging_and_handle_errors(*, verbose: int) -> None:
     """Configure logging with appropriate verbosity."""
-    configure_logging(verbose=verbose)
+    configure_logging(verbosity=verbose)
 
 
 def unified_workflow(

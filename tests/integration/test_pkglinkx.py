@@ -147,7 +147,7 @@ def test_pkglinkx_needs_project_name(
         test_dir,
     )
     assert result.returncode == 1
-    assert '[EXCEPTION] cli_operation_failed' in result.stdout
+    assert 'EXCEPTION: cli_operation_failed' in result.stdout
     assert 'you may need to provide --project-name' in result.stdout.replace(
         '\n',
         ' ',
@@ -301,7 +301,7 @@ def test_pkglinkx_error_cases(
     result = run_pkglinkx(errcase.args, test_dir)
     assert result.returncode != 0
     if 'usage:' not in result.stderr:
-        assert '[EXCEPTION] cli_operation_failed' in result.stderr
+        assert 'EXCEPTION: cli_operation_failed' in result.stderr
     assert errcase.expected_message in result.stderr.replace('\n', ' ')
 
 

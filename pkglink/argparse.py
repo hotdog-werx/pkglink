@@ -1,6 +1,8 @@
 import argparse
 import re
 
+from hotlog import add_verbosity_argument, resolve_verbosity
+
 from pkglink.models import (
     ParsedSource,
     PkglinkCliArgs,
@@ -99,11 +101,7 @@ def create_base_parser(
         '--symlink-name',
         help='Custom name for the symlink',
     )
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Enable verbose logging',
-    )
+    add_verbosity_argument(parser)
     parser.add_argument(
         '--from',
         dest='from_package',
@@ -154,7 +152,7 @@ def parse_pkglink_args() -> PkglinkCliArgs:
         symlink_name=raw_args.symlink_name,
         force=raw_args.force,
         dry_run=raw_args.dry_run,
-        verbose=raw_args.verbose,
+        verbose=resolve_verbosity(raw_args),
         from_package=raw_args.from_package,
         project_name=raw_args.project_name,
         no_setup=raw_args.no_setup,
@@ -182,7 +180,7 @@ def parse_pkglinkx_args() -> PkglinkxCliArgs:
         directory=args.directory,
         symlink_name=args.symlink_name,
         skip_resources=args.skip_resources,
-        verbose=args.verbose,
+        verbose=resolve_verbosity(args),
         from_package=args.from_package,
         project_name=args.project_name,
         no_setup=args.no_setup,

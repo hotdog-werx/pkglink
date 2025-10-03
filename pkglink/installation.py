@@ -4,7 +4,8 @@ import re
 import shutil
 from pathlib import Path
 
-from pkglink.logging import get_logger
+from hotlog import get_logger
+
 from pkglink.models import SourceSpec
 from pkglink.parsing import build_uv_install_spec
 from pkglink.uvx import get_site_packages_path

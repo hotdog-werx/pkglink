@@ -280,7 +280,7 @@ def test_pkglink_error_cases(
 
     result = run_pkglink(errcase.args, test_dir)
     assert result.returncode == 1
-    assert '[EXCEPTION] cli_operation_failed' in result.stdout
+    assert 'EXCEPTION: cli_operation_failed' in result.stdout
     assert errcase.expected_message in result.stdout.replace('\n', ' ')
 
 
