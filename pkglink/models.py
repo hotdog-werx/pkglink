@@ -76,7 +76,7 @@ class BaseCliArgs(BaseModel):
     source: ParsedSource  # Validated source spec (github, package, or local)
     directory: str = 'resources'  # Target directory name within the package
     symlink_name: str | None = None  # Custom name for the symlink (defaults to .{source})
-    verbose: bool = False  # Enable verbose logging output
+    verbose: int = 0  # Enable verbose logging output
     from_package: ParsedSource | None = None  # Install from PyPI package, GitHub repo, or local path
     project_name: str | None = None  # For GitHub repos with different PyPI package names
     no_setup: bool = False  # Skip post-install setup steps

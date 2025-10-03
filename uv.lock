@@ -110,6 +110,20 @@ toml = [
 ]
 
 [[package]]
+name = "hotlog"
+version = "0.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "structlog" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3b/97/385ffdb774451abfbbfbb85f736a62482edf349fd68446e6e262a84c069c/hotlog-0.0.3.tar.gz", hash = "sha256:98c1808f0d96cd2a095688faf614f0972eac4c8a64369e561a5c01f1fc044b0b", size = 12453, upload-time = "2025-10-03T00:27:36.098Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8f/ee/24daf355e9a01c67928f284f4995fc67b99c7be982cd75bfa1021d82ce2b/hotlog-0.0.3-py3-none-any.whl", hash = "sha256:998cf5d05434fda8185a2461d8b751d52e7266ea4a99bd6c1d068f50c50b2ec4", size = 16776, upload-time = "2025-10-03T00:27:34.78Z" },
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -162,6 +176,7 @@ name = "pkglink"
 source = { editable = "." }
 dependencies = [
     { name = "argcomplete" },
+    { name = "hotlog" },
     { name = "pathspec" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -181,6 +196,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "argcomplete", specifier = ">=3.6.2,<4" },
+    { name = "hotlog", specifier = ">=0.0.3" },
     { name = "pathspec", specifier = ">=0.12.0,<1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pyyaml", specifier = ">=6.0,<7" },

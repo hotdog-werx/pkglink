@@ -4,11 +4,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from hotlog import configure_logging, get_logger
+
 from pkglink.execution_plan import (
     execute_plan,
     generate_execution_plan,
 )
-from pkglink.logging import configure_logging, get_logger
 from pkglink.models import BaseCliArgs, ExecutionPlan, PkglinkContext
 from pkglink.parsing import create_pkglink_context
 from pkglink.setup import run_post_install_setup
@@ -16,9 +17,9 @@ from pkglink.setup import run_post_install_setup
 logger = get_logger(__name__)
 
 
-def setup_logging_and_handle_errors(*, verbose: bool) -> None:
+def setup_logging_and_handle_errors(*, verbose: int) -> None:
     """Configure logging with appropriate verbosity."""
-    configure_logging(verbose=verbose)
+    configure_logging(verbosity=verbose)
 
 
 def unified_workflow(
@@ -52,11 +53,11 @@ def unified_workflow(
     # After plan execution, run post-install setup unless --no-setup is specified
     if not context.cli_args.no_setup:
         # Use the base_dir and linked_path (target_dir for pkglinkx, cwd for pkglink)
-        # For pkglinkx, target_dir is available from the context or plan
+        # For pkglinkx, linked_path is inside .pkglink, but symlinks should be created at project root
         symlink_name = context.resolved_symlink_name
         if context.inside_pkglink:
             linked_path = Path.cwd() / '.pkglink' / symlink_name
-            base_dir = Path.cwd() / '.pkglink'
+            base_dir = Path.cwd()  # Always create setup symlinks at project root
         else:
             linked_path = Path.cwd() / symlink_name
             base_dir = Path.cwd()

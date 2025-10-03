@@ -5,7 +5,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from pkglink.logging import get_logger
+from hotlog import get_logger
 
 logger = get_logger(__name__)
 

@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from hotlog import get_logger
 from pydantic import BaseModel
 
-from pkglink.logging import get_logger
 from pkglink.symlinks import create_symlink
 
 logger = get_logger(__name__)

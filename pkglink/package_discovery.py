@@ -3,7 +3,8 @@
 import configparser
 from pathlib import Path
 
-from pkglink.logging import get_logger
+from hotlog import get_logger
+
 from pkglink.models import PackageInfo
 
 logger = get_logger(__name__)

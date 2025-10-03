@@ -147,7 +147,7 @@ def test_pkglinkx_needs_project_name(
         test_dir,
     )
     assert result.returncode == 1
-    assert '[EXCEPTION] cli_operation_failed' in result.stdout
+    assert 'EXCEPTION: cli_operation_failed' in result.stdout
     assert 'you may need to provide --project-name' in result.stdout.replace(
         '\n',
         ' ',
@@ -190,6 +190,12 @@ def test_pkglinkx_switch_back(tmp_path: Path, run_pkglinkx: CliCommand):
     # Verify .pkglink structure was created
     pkglink_dir = test_dir / '.pkglink' / repo_name
     assert_exists_and_type(pkglink_dir)
+
+    # Verify post-install setup symlinks are created at project root, not inside .pkglink
+    assert_exists_and_type(test_dir / 'index.html')
+    assert_exists_and_type(test_dir / 'theme' / 'inner' / 'style.css')
+    assert not (test_dir / '.pkglink' / 'index.html').exists()
+    assert not (test_dir / '.pkglink' / 'theme').exists()
 
     # Test CLI execution for first version
     cli_result = run_uvx(
@@ -301,7 +307,7 @@ def test_pkglinkx_error_cases(
     result = run_pkglinkx(errcase.args, test_dir)
     assert result.returncode != 0
     if 'usage:' not in result.stderr:
-        assert '[EXCEPTION] cli_operation_failed' in result.stderr
+        assert 'EXCEPTION: cli_operation_failed' in result.stderr
     assert errcase.expected_message in result.stderr.replace('\n', ' ')
 
 

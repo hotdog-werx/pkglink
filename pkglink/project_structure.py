@@ -1,6 +1,6 @@
 import tomli_w
+from hotlog import get_logger
 
-from pkglink.logging import get_logger
 from pkglink.models import PackageInfo
 
 logger = get_logger(__name__)
