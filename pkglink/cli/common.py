@@ -22,6 +22,24 @@ def setup_logging_and_handle_errors(*, verbose: int) -> None:
     configure_logging(verbosity=verbose)
 
 
+def run_post_install_from_plan(plan: ExecutionPlan) -> None:
+    """Run post-install setup steps based on an execution plan."""
+
+    context = plan.context
+    if context.cli_args.no_setup:
+        return
+
+    symlink_name = context.resolved_symlink_name
+    if context.inside_pkglink:
+        linked_path = Path.cwd() / '.pkglink' / symlink_name
+        base_dir = Path.cwd()
+    else:
+        linked_path = Path.cwd() / symlink_name
+        base_dir = Path.cwd()
+
+    run_post_install_setup(linked_path, base_dir)
+
+
 def unified_workflow(
     context: PkglinkContext,
     *,
@@ -51,17 +69,7 @@ def unified_workflow(
     execute_plan(plan)
 
     # After plan execution, run post-install setup unless --no-setup is specified
-    if not context.cli_args.no_setup:
-        # Use the base_dir and linked_path (target_dir for pkglinkx, cwd for pkglink)
-        # For pkglinkx, linked_path is inside .pkglink, but symlinks should be created at project root
-        symlink_name = context.resolved_symlink_name
-        if context.inside_pkglink:
-            linked_path = Path.cwd() / '.pkglink' / symlink_name
-            base_dir = Path.cwd()  # Always create setup symlinks at project root
-        else:
-            linked_path = Path.cwd() / symlink_name
-            base_dir = Path.cwd()
-        run_post_install_setup(linked_path, base_dir)
+    run_post_install_from_plan(plan)
 
     logger.info(
         'workflow_completed',
@@ -91,7 +99,7 @@ def setup_context_and_validate(cli_args: BaseCliArgs) -> PkglinkContext:
     context = create_pkglink_context(cli_args)
 
     # Log starting message (concise summary only)
-    cli_name = 'pkglink' if context.is_pkglink_cli else 'pkglinkx'
+    cli_name = context.cli_label
     start_notice = f'starting_{cli_name}'
     logger.info(start_notice, **context.get_concise_summary())
 
@@ -140,6 +148,13 @@ def log_completion(
         log_data['target_dir'] = f'.pkglink/{context.install_spec.project_name}'
         log_data['python_module_name'] = context.module_name
         log_data['source_type'] = context.source_type
+
+    if context.is_batch_cli:
+        # Provide additional context for batch runs
+        log_data['config_entry'] = getattr(context.cli_args, 'entry_name', 'unknown')
+        config_path = getattr(context.cli_args, 'config_path', None)
+        if config_path:
+            log_data['config_path'] = config_path
 
     msg = f'{cli_name}_completed'
     logger.info(msg, **log_data)

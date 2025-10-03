@@ -3,11 +3,14 @@
 Create symlinks to python package directories from PyPI packages or GitHub repos
 into your current working directory.
 
-This package provides two complementary tools:
+This package provides three complementary tools:
 
 - **`pkglink`**: For accessing resources from any Python package or GitHub repo
 - **`pkglinkx`**: For making GitHub Python projects `uvx`-compatible for CLI
   execution
+- **`pkglink-batch`**: For reading project configuration from
+  `pkglink.config.yaml` and processing multiple pkglink operations in staged
+  batches
 
 ## ⚠️ Requirements
 
@@ -45,6 +48,15 @@ files.
 `.pkglink` directory structure that makes any GitHub Python project compatible
 with `uvx` for CLI tool execution, even if the project wasn't originally
 designed for it.
+
+### pkglink-batch
+
+`pkglink-batch` lets you define multiple resources and CLI packages inside a
+`pkglink.config.yaml` file and execute them in three deterministic phases:
+download, plan, and execute. The batch process downloads every package up front (failing fast if any
+fetch errors occur), generates execution plans for each entry, and finally runs
+all filesystem operations and post-install setup. This keeps logs grouped by
+phase and ensures a partially completed batch never writes to disk.
 
 ## Installation
 
@@ -157,6 +169,49 @@ pkglinkx -d configs -s .my-configs github:org/config-tool
 **Note**: If the target symlink already exists, `pkglink` will skip the
 operation and exit successfully (unless `--force` is used). This makes it safe
 to run in setup scripts multiple times.
+
+### pkglink-batch - YAML Automation
+
+`pkglink-batch` reads entries from `pkglink.config.yaml` and executes every
+entry in three stages. Each entry uses the same flags available on `pkglink` or
+`pkglinkx`, so you can mix resource links and `.pkglink` uvx setups in one run.
+
+#### Example `pkglink.config.yaml`
+
+```yaml
+defaults:
+  inside_pkglink: true
+  directory: resources
+
+targets:
+  - name: codeguide
+    source: github:hotdog-werx/codeguide@topic/updates
+    project_name: codeguide
+    symlink_name: .codeguide
+
+  - name: toolbelt-cli
+    source: github:hotdog-werx/toolbelt@v0.0.1
+    from: tbelt
+    project_name: tbelt
+    inside_pkglink: false
+    skip_resources: true
+```
+
+Run the batch:
+
+```bash
+pkglink-batch  # reads pkglink.config.yaml in the current directory
+```
+
+The CLI will:
+
+1. Download every package (stop immediately if any download fails)
+2. Generate execution plans using the cached downloads
+3. Apply each plan and run `pkglink.yaml` post-install setup where applicable
+
+Use `pkglink-batch --dry-run` to preview all plans without touching the
+filesystem. You can override the configuration path with
+`pkglink-batch --config path/to/pkglink.config.yaml`.
 
 ## ⚠️ Important Notes & Gotchas
 

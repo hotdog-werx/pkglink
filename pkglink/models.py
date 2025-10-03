@@ -97,6 +97,22 @@ class PkglinkxCliArgs(BaseCliArgs):
     skip_resources: bool = False
 
 
+class PkglinkBatchCliArgs(BaseCliArgs):
+    """Arguments derived from mise.toml configuration for batch CLI."""
+
+    skip_resources: bool = False
+    inside_pkglink: bool = False
+    entry_name: Annotated[
+        str,
+        StringConstraints(min_length=1, strip_whitespace=True),
+    ] = 'pkglink_entry'
+    cli_label: Annotated[
+        str,
+        StringConstraints(min_length=1, strip_whitespace=True),
+    ] = 'pkglink_batch'
+    config_path: str | None = None
+
+
 class PkglinkxMetadata(BaseModel):
     """Metadata for pkglinkx installations."""
 
@@ -149,6 +165,22 @@ class PkglinkContext(BaseModel):
         return isinstance(self.cli_args, PkglinkxCliArgs)
 
     @property
+    def is_batch_cli(self) -> bool:
+        """Check if this context originated from the batch CLI."""
+        return isinstance(self.cli_args, PkglinkBatchCliArgs)
+
+    @property
+    def cli_label(self) -> str:
+        """Friendly CLI label for logging."""
+        if self.is_pkglink_cli:
+            return 'pkglink'
+        if self.is_pkglinkx_cli:
+            return 'pkglinkx'
+        if self.is_batch_cli:
+            return getattr(self.cli_args, 'cli_label', 'pkglink_batch')
+        return 'pkglink'
+
+    @property
     def resolved_symlink_name(self) -> str:
         """Get the final symlink name."""
         # If CLI provides a symlink name, use it
@@ -182,7 +214,7 @@ class PkglinkContext(BaseModel):
             'display_name': self.get_display_name(),
             'skip_resources': self.skip_resources,
             'inside_pkglink': self.inside_pkglink,
-            'cli_type': 'pkglink' if self.is_pkglink_cli else 'pkglinkx',
+            'cli_type': self.cli_label,
             'install_spec': self.install_spec.model_dump(),
             'cli_args': self.cli_args.model_dump(),
         }
@@ -194,7 +226,7 @@ class PkglinkContext(BaseModel):
             'source_type': self.source_type,
             'target_directory': self.cli_args.directory,
             'dry_run': self.cli_args.dry_run,
-            'cli_type': 'pkglink' if self.is_pkglink_cli else 'pkglinkx',
+            'cli_type': self.cli_label,
         }
 
         # Only include names if they're different (interesting case)

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
 from pkglink.cli.pkglink import main as pkglink_main
+from pkglink.cli.pkglink_batch import main as pkglink_batch_main
 from pkglink.cli.pkglinkx import main as pkglinkx_main
 
 
@@ -115,6 +116,27 @@ def run_pkglinkx(
         ctx = RunCommandContext(
             cli_name='pkglinkx',
             main_func=pkglinkx_main,
+            args=args,
+            cwd=cwd,
+            capsys=capsys,
+            caplog=caplog,
+            mocker=mocker,
+        )
+        return _run_command(ctx)
+
+    return _run
+
+
+@pytest.fixture
+def run_pkglink_batch(
+    capsys: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+    mocker: MockerFixture,
+) -> CliCommand:
+    def _run(args: list[str], cwd: Path) -> Result:
+        ctx = RunCommandContext(
+            cli_name='pkglink-batch',
+            main_func=pkglink_batch_main,
             args=args,
             cwd=cwd,
             capsys=capsys,
