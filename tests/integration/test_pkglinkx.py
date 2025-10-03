@@ -191,6 +191,12 @@ def test_pkglinkx_switch_back(tmp_path: Path, run_pkglinkx: CliCommand):
     pkglink_dir = test_dir / '.pkglink' / repo_name
     assert_exists_and_type(pkglink_dir)
 
+    # Verify post-install setup symlinks are created at project root, not inside .pkglink
+    assert_exists_and_type(test_dir / 'index.html')
+    assert_exists_and_type(test_dir / 'theme' / 'inner' / 'style.css')
+    assert not (test_dir / '.pkglink' / 'index.html').exists()
+    assert not (test_dir / '.pkglink' / 'theme').exists()
+
     # Test CLI execution for first version
     cli_result = run_uvx(
         ['--from', str(pkglink_dir), 'test-cli'],

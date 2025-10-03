@@ -53,11 +53,11 @@ def unified_workflow(
     # After plan execution, run post-install setup unless --no-setup is specified
     if not context.cli_args.no_setup:
         # Use the base_dir and linked_path (target_dir for pkglinkx, cwd for pkglink)
-        # For pkglinkx, target_dir is available from the context or plan
+        # For pkglinkx, linked_path is inside .pkglink, but symlinks should be created at project root
         symlink_name = context.resolved_symlink_name
         if context.inside_pkglink:
             linked_path = Path.cwd() / '.pkglink' / symlink_name
-            base_dir = Path.cwd() / '.pkglink'
+            base_dir = Path.cwd()  # Always create setup symlinks at project root
         else:
             linked_path = Path.cwd() / symlink_name
             base_dir = Path.cwd()
