@@ -2,6 +2,7 @@
 
 from argparse import ArgumentTypeError
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,23 @@ class PkglinkConfigError(RuntimeError):
     """Raised when pkglink configuration is invalid."""
 
 
+@dataclass
+class NormalizedEntry:
+    """Internal representation of a config entry after normalization."""
+
+    source: str
+    directory: str | None = None
+    symlink_name: str | None = None
+    inside_pkglink: bool | None = None
+    skip_resources: bool | None = None
+    no_setup: bool | None = None
+    force: bool | None = None
+    project_name: str | None = None
+    dry_run: bool | None = None
+    verbose: int | None = None
+    from_spec: str | None = None
+
+
 class LinkOptions(BaseModel):
     """Optional values that can be applied to each pkglink link."""
 
@@ -39,12 +57,26 @@ class LinkOptions(BaseModel):
     from_spec: str | None = Field(default=None, alias='from')
 
 
-class LinkDefinition(LinkOptions):
-    """Represents a single link definition in pkglink.config.yaml."""
+class GitHubEntry(LinkOptions):
+    """GitHub repository entry with optional version."""
 
     model_config = ConfigDict(extra='forbid', populate_by_name=True)
 
-    source: str
+    version: str | None = None
+
+
+class PythonPackageEntry(LinkOptions):
+    """Python package entry from PyPI."""
+
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
+
+    version: str | None = None
+
+
+class LocalEntry(LinkOptions):
+    """Local path entry."""
+
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
 
 
 class PkglinkConfig(BaseModel):
@@ -53,7 +85,12 @@ class PkglinkConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     defaults: LinkOptions = Field(default_factory=LinkOptions)
-    links: dict[str, LinkDefinition] = Field(default_factory=dict)
+    github: dict[str, str | GitHubEntry] | None = None
+    python_packages: dict[str, str | PythonPackageEntry] | None = Field(
+        default=None,
+        alias='python-packages',
+    )
+    local: dict[str, str | LocalEntry] | None = None
 
 
 def _load_yaml_config(config_path: Path) -> dict[str, Any]:
@@ -206,8 +243,142 @@ def _ensure_unique_link_targets(contexts: list[PkglinkContext]) -> None:
     )
 
 
-def load_config(config_path: Path) -> PkglinkConfig:
-    """Load pkglink configuration from YAML."""
+def _normalize_github_entry(
+    key: str,
+    value: str | GitHubEntry,
+) -> NormalizedEntry:
+    """Convert GitHub entry to NormalizedEntry."""
+    # key format: "org/repo"
+    if isinstance(value, str):
+        # Simple format: "org/repo: version"
+        source = f'github:{key}@{value}'
+        return NormalizedEntry(source=source)
+
+    # Detailed format
+    version = value.version or 'main'
+    source = f'github:{key}@{version}'
+    kwargs = {
+        'source': source,
+        'directory': value.directory,
+        'symlink_name': value.symlink_name,
+        'inside_pkglink': value.inside_pkglink,
+        'skip_resources': value.skip_resources,
+        'no_setup': value.no_setup,
+        'force': value.force,
+        'project_name': value.project_name,
+        'dry_run': value.dry_run,
+        'verbose': value.verbose,
+    }
+    if value.from_spec is not None:
+        kwargs['from_spec'] = value.from_spec
+    return NormalizedEntry(**kwargs)
+
+
+def _normalize_python_package_entry(
+    key: str,
+    value: str | PythonPackageEntry,
+) -> NormalizedEntry:
+    """Convert Python package entry to NormalizedEntry."""
+    # key is the package name
+    if isinstance(value, str):
+        # Simple format with version specifier: "package: >=1.0.0"
+        # or just package name (latest)
+        source = f'{key}{value}' if value else key
+        return NormalizedEntry(source=source)
+
+    # Detailed format
+    source = key
+    if value.version:
+        source = f'{key}{value.version}'
+    kwargs = {
+        'source': source,
+        'directory': value.directory,
+        'symlink_name': value.symlink_name,
+        'inside_pkglink': value.inside_pkglink,
+        'skip_resources': value.skip_resources,
+        'no_setup': value.no_setup,
+        'force': value.force,
+        'project_name': value.project_name,
+        'dry_run': value.dry_run,
+        'verbose': value.verbose,
+    }
+    if value.from_spec is not None:
+        kwargs['from_spec'] = value.from_spec
+    return NormalizedEntry(**kwargs)
+
+
+def _normalize_local_entry(
+    key: str,
+    value: str | LocalEntry,
+) -> NormalizedEntry:
+    """Convert local path entry to NormalizedEntry."""
+    # key is the path
+    if isinstance(value, str):
+        # Simple format - value is empty string, key is the path
+        source = f'local:{key}'
+        return NormalizedEntry(source=source)
+
+    # Detailed format
+    source = f'local:{key}'
+    kwargs = {
+        'source': source,
+        'directory': value.directory,
+        'symlink_name': value.symlink_name,
+        'inside_pkglink': value.inside_pkglink,
+        'skip_resources': value.skip_resources,
+        'no_setup': value.no_setup,
+        'force': value.force,
+        'project_name': value.project_name,
+        'dry_run': value.dry_run,
+        'verbose': value.verbose,
+    }
+    if value.from_spec is not None:
+        kwargs['from_spec'] = value.from_spec
+    return NormalizedEntry(**kwargs)
+
+
+def _convert_to_links(config: PkglinkConfig) -> dict[str, NormalizedEntry]:
+    """Convert new structured format to unified links format."""
+    links: dict[str, NormalizedEntry] = {}
+
+    # Process GitHub entries
+    if config.github:
+        for key, value in config.github.items():
+            # Use repo name as entry name
+            entry_name = key.split('/')[-1]  # Extract repo name from org/repo
+            if entry_name in links:
+                entry_name = key.replace('/', '_')  # Use full path if conflict
+            links[entry_name] = _normalize_github_entry(key, value)
+
+    # Process Python package entries
+    if config.python_packages:
+        for key, value in config.python_packages.items():
+            entry_name = key
+            if entry_name in links:
+                entry_name = f'pkg_{key}'  # Prefix if conflict
+            links[entry_name] = _normalize_python_package_entry(key, value)
+
+    # Process local entries
+    if config.local:
+        for key, value in config.local.items():
+            # Use directory name as entry name
+            entry_name = Path(key).name
+            if entry_name in links:
+                entry_name = f'local_{Path(key).name}'  # Prefix if conflict
+            links[entry_name] = _normalize_local_entry(key, value)
+
+    return links
+
+
+def load_config(
+    config_path: Path,
+) -> tuple[PkglinkConfig, dict[str, NormalizedEntry]]:
+    """Load pkglink configuration from YAML.
+
+    Returns:
+        Tuple of (config, normalized_links) where normalized_links is a dict
+        of entry_name -> NormalizedEntry ready for context building.
+    """
     config_data = _load_yaml_config(config_path)
 
     try:
@@ -217,15 +388,19 @@ def load_config(config_path: Path) -> PkglinkConfig:
         msg = 'invalid pkglink configuration'
         raise PkglinkConfigError(msg) from exc
 
-    if not config.links:
+    # Convert structured format to normalized entries
+    has_any_links = config.github or config.python_packages or config.local
+    if not has_any_links:
         msg = f'no links defined in {config_path}'
         raise PkglinkConfigError(msg)
 
-    return config
+    normalized_links = _convert_to_links(config)
+    return config, normalized_links
 
 
 def build_contexts(
     config: PkglinkConfig,
+    normalized_links: dict[str, NormalizedEntry],
     *,
     config_path: Path,
     global_verbose: int = 0,
@@ -234,7 +409,7 @@ def build_contexts(
     """Create pkglink contexts from a loaded configuration."""
     contexts: list[PkglinkContext] = []
 
-    for entry_name, entry in config.links.items():
+    for entry_name, entry in normalized_links.items():
         logger.debug('resolving_link_entry', entry=entry_name)
 
         parsed_source = _parse_source(entry.source, context_label=entry_name)
@@ -299,9 +474,10 @@ def load_contexts(
     global_dry_run: bool = False,
 ) -> list[PkglinkContext]:
     """Convenience wrapper to load configuration and build contexts."""
-    config = load_config(config_path)
+    config, normalized_links = load_config(config_path)
     return build_contexts(
         config,
+        normalized_links,
         config_path=config_path,
         global_verbose=global_verbose,
         global_dry_run=global_dry_run,
@@ -310,8 +486,8 @@ def load_contexts(
 
 __all__ = [
     'DEFAULT_CONFIG_FILENAME',
-    'LinkDefinition',
     'LinkOptions',
+    'NormalizedEntry',
     'PkglinkConfig',
     'PkglinkConfigError',
     'build_contexts',

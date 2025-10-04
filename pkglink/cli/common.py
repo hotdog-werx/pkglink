@@ -194,7 +194,7 @@ def _process_entry(
     entry: WorkflowEntry,
     live: LiveLogger | None,
     post_execution: Callable[[WorkflowEntry], None] | None,
-    completed_entries: list[dict[str, Any]],
+    completed_entries: dict[str, dict[str, Any]],
 ) -> None:
     """Process a single entry: dry-run handling, start logging, execute plan.
 
@@ -202,7 +202,16 @@ def _process_entry(
     """
     plan = _get_execution_plan(entry)
 
-    if _handle_dry_run(live=live, entry=entry, plan=plan):
+    dry_run_info = _handle_dry_run(live=live, entry=entry, plan=plan)
+    if dry_run_info is not None:
+        # Handle key collision for dry-run entries too
+        key = entry.label
+        if key in completed_entries:
+            counter = 2
+            while f'{key}_{counter}' in completed_entries:
+                counter += 1
+            key = f'{key}_{counter}'
+        completed_entries[key] = dry_run_info
         return
 
     _log_execution_start(live=live, entry=entry, plan=plan)
@@ -212,12 +221,21 @@ def _process_entry(
         plan=plan,
         post_execution=post_execution,
     )
-    completed_entries.append(entry_result)
+
+    # Handle key collisions by appending a counter
+    key = entry.label
+    if key in completed_entries:
+        counter = 2
+        while f'{key}_{counter}' in completed_entries:
+            counter += 1
+        key = f'{key}_{counter}'
+
+    completed_entries[key] = entry_result
 
 
 def _emit_final_summary(
     entries_list: list[WorkflowEntry],
-    completed_entries: list[dict[str, Any]],
+    completed_entries: dict[str, dict[str, Any]],
 ) -> None:
     """Emit aggregate completion message and pkglinkx next steps if applicable.
 
@@ -227,14 +245,24 @@ def _emit_final_summary(
         return
 
     total_packages = len(completed_entries)
-    message = f'linked {total_packages} package'
-    if total_packages != 1:
-        message += 's'
-    logger.info(message, packages=completed_entries)
 
-    # Show next steps for pkglinkx after summary
-    if entries_list and entries_list[0].context.is_pkglinkx_cli:
-        _log_next_steps_for_pkglinkx(entries_list[0].context)
+    # Check if this is a dry-run
+    is_dry_run = any(entry.get('dry_run', False) for entry in completed_entries.values())
+
+    if is_dry_run:
+        message = f'would link {total_packages} package'
+        if total_packages != 1:
+            message += 's'
+        logger.info(message, **completed_entries)
+    else:
+        message = f'linked {total_packages} package'
+        if total_packages != 1:
+            message += 's'
+        logger.info(message, **completed_entries)
+
+        # Show next steps for pkglinkx after summary (only for real runs)
+        if entries_list and entries_list[0].context.is_pkglinkx_cli:
+            _log_next_steps_for_pkglinkx(entries_list[0].context)
 
 
 def _handle_dry_run(
@@ -242,11 +270,17 @@ def _handle_dry_run(
     live: LiveLogger | None,
     entry: WorkflowEntry,
     plan: ExecutionPlan,
-) -> bool:
+) -> dict[str, Any] | None:
+    """Handle dry-run mode.
+
+    Returns:
+        Dict with dry-run info if dry-run is enabled, None otherwise.
+    """
     context = entry.context
     if not context.cli_args.dry_run:
-        return False
+        return None
 
+    # Log individual dry-run entries at display level 1 (hidden at v0)
     if live is not None:
         live.info(
             'dry_run_entry',
@@ -256,19 +290,27 @@ def _handle_dry_run(
     else:
         logger.info(
             'entry_dry_run',
-            # phase no longer included
             entry=entry.label,
             operations=len(plan.file_operations),
             _display_level=1,
         )
 
+    # Log completion at display level 1 (hidden at v0) so only final summary shows
     logger.info(
         'dry_run_plan_complete',
         entry=entry.label,
         operations=len(plan.file_operations),
         _verbose_cli=context.cli_label,
+        _display_level=1,
     )
-    return True
+
+    # Return dry-run summary info (omit operations count - always 7 for inside_pkglink
+    # and doesn't include post-install additional symlinks which are unknown until execution)
+    return {
+        'source': context.canonical_source,
+        'target': context.primary_target_display,
+        'dry_run': True,
+    }
 
 
 def _log_execution_start(
@@ -345,7 +387,7 @@ def execution_phase(
         _display_level=1,
     )
 
-    completed_entries: list[dict[str, Any]] = []
+    completed_entries: dict[str, dict[str, Any]] = {}
 
     with maybe_live_logging('Applying operations...') as live:
         for entry in entries:
