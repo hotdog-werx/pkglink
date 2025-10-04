@@ -80,7 +80,7 @@ def test_pkglinkx(
 
     result = run_pkglinkx(tcase.pkglinkx_args, test_dir)
     assert result.returncode == 0
-    assert 'pkglinkx_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Verify .pkglink structure was created
     pkglinkx_dir = test_dir / '.pkglink' / tcase.expect.symlink
@@ -127,7 +127,7 @@ def test_pkglinkx_skip_resources(
         test_dir,
     )
     assert result.returncode == 0
-    assert 'pkglinkx_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Verify no symlink was created
     base_pkglink_dir = test_dir / '.pkglink'
@@ -147,7 +147,7 @@ def test_pkglinkx_needs_project_name(
         test_dir,
     )
     assert result.returncode == 1
-    assert 'EXCEPTION: cli_operation_failed' in result.stdout
+    assert 'ERROR: cli_operation_failed' in result.stdout
     assert 'you may need to provide --project-name' in result.stdout.replace(
         '\n',
         ' ',
@@ -185,7 +185,7 @@ def test_pkglinkx_switch_back(tmp_path: Path, run_pkglinkx: CliCommand):
     # Install first version
     result = run_pkglinkx(spec_1, test_dir)
     assert result.returncode == 0
-    assert 'pkglinkx_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Verify .pkglink structure was created
     pkglink_dir = test_dir / '.pkglink' / repo_name
@@ -208,7 +208,7 @@ def test_pkglinkx_switch_back(tmp_path: Path, run_pkglinkx: CliCommand):
     # Run pkglinkx for second version
     result = run_pkglinkx(spec_2, test_dir)
     assert result.returncode == 0
-    assert 'pkglinkx_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Test CLI execution for second version
     cli_result = run_uvx(
@@ -307,7 +307,7 @@ def test_pkglinkx_error_cases(
     result = run_pkglinkx(errcase.args, test_dir)
     assert result.returncode != 0
     if 'usage:' not in result.stderr:
-        assert 'EXCEPTION: cli_operation_failed' in result.stderr
+        assert 'ERROR: cli_operation_failed' in result.stderr
     assert errcase.expected_message in result.stderr.replace('\n', ' ')
 
 
@@ -337,7 +337,7 @@ def test_pkglinkx_install_twice(
     # Install first version
     result = run_pkglinkx(spec_1, test_dir)
     assert result.returncode == 0
-    assert 'pkglinkx_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Verify .pkglink structure was created
     pkglink_dir = test_dir / '.pkglink' / repo_name
@@ -352,7 +352,7 @@ def test_pkglinkx_install_twice(
     # Install again
     result = run_pkglinkx(spec_1, test_dir)
     assert result.returncode == 0
-    assert 'pkglinkx_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
 
 def test_pkglinkx_pyproject_dependencies(

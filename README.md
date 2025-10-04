@@ -53,10 +53,11 @@ designed for it.
 
 `pkglink-batch` lets you define multiple resources and CLI packages inside a
 `pkglink.config.yaml` file and execute them in three deterministic phases:
-download, plan, and execute. The batch process downloads every package up front (failing fast if any
-fetch errors occur), generates execution plans for each entry, and finally runs
-all filesystem operations and post-install setup. This keeps logs grouped by
-phase and ensures a partially completed batch never writes to disk.
+download, plan, and execute. The batch process downloads every package up front
+(failing fast if any fetch errors occur), generates execution plans for each
+entry, and finally runs all filesystem operations and post-install setup. This
+keeps logs grouped by phase and ensures a partially completed batch never writes
+to disk.
 
 ## Installation
 
@@ -172,9 +173,10 @@ to run in setup scripts multiple times.
 
 ### pkglink-batch - YAML Automation
 
-`pkglink-batch` reads entries from `pkglink.config.yaml` and executes every
-entry in three stages. Each entry uses the same flags available on `pkglink` or
-`pkglinkx`, so you can mix resource links and `.pkglink` uvx setups in one run.
+`pkglink-batch` reads link definitions from `pkglink.config.yaml` and executes
+each one in three stages. Each link uses the same flags available on `pkglink`
+or `pkglinkx`, so you can mix resource links and `.pkglink` uvx setups in one
+run.
 
 #### Example `pkglink.config.yaml`
 
@@ -183,19 +185,23 @@ defaults:
   inside_pkglink: true
   directory: resources
 
-targets:
-  - name: codeguide
+links:
+  codeguide:
     source: github:hotdog-werx/codeguide@topic/updates
     project_name: codeguide
     symlink_name: .codeguide
 
-  - name: toolbelt-cli
+  toolbelt-cli:
     source: github:hotdog-werx/toolbelt@v0.0.1
     from: tbelt
     project_name: tbelt
     inside_pkglink: false
     skip_resources: true
 ```
+
+> **Warning:** Each link must resolve to a unique `project_name` and
+> `symlink_name`. If two entries collide, `pkglink-batch` will exit before
+> downloading anything and list the duplicates so you can fix them safely.
 
 Run the batch:
 

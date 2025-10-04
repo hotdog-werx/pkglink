@@ -288,6 +288,7 @@ def _prepare_cache_directory(cache_dir: Path, spec: SourceSpec) -> None:
         'refreshing_stale_cache',
         package=spec.name,
         _verbose_cache_dir=str(cache_dir),
+        _display_level=1,
     )
     with contextlib.suppress(OSError, FileNotFoundError):
         # Cache directory might have been removed by another process
@@ -334,12 +335,14 @@ def _perform_uvx_installation(
                 package=spec.name,
                 source=install_spec,
                 reason='mutable_reference',
+                _display_level=1,
             )
         else:
             logger.info(
                 'downloading_package_with_uvx',
                 package=spec.name,
                 source=install_spec,
+                _display_level=1,
             )
 
         # Get the site-packages directory from uvx's environment
@@ -390,6 +393,7 @@ def _perform_uvx_installation(
             'package_downloaded_and_cached',
             package=spec.name,
             _verbose_cache_dir=str(cache_dir),
+            _display_level=1,
         )
     except RuntimeError as e:
         msg = f'Failed to install {spec.name} with uvx: {e}'
@@ -417,6 +421,7 @@ def install_with_uvx(spec: SourceSpec) -> tuple[Path, str, Path | None]:
             'using_cached_installation',
             package=spec.name,
             _verbose_cache_dir=str(cache_dir),
+            _display_level=1,
         )
         cached_dist_info_name = _get_cached_dist_info(cache_dir)
         # The following may happen due to previous incomplete installs

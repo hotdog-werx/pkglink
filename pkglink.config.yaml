@@ -1,0 +1,14 @@
+# pkglink.config.yaml
+# Example config for installing codeguide, tbelt, and local-integration
+
+links:
+  integration_uvx:
+    source: github:hotdog-werx/pkglink-integration-pkg@v0.0.1
+    project_name: pkglink-integration-pkg
+
+  codeguide:
+    source: github:hotdog-werx/codeguide@master
+
+  toolbelt:
+    from_spec: tbelt
+    source: toolbelt

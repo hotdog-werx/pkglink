@@ -1,43 +1,25 @@
 """Batch pkglink CLI driven by YAML configuration."""
 
-from __future__ import annotations
-
 import argparse
-from dataclasses import dataclass
 from pathlib import Path
 
 from hotlog import add_verbosity_argument, get_logger, resolve_verbosity
 
 from pkglink.cli.common import (
+    WorkflowEntry,
+    download_phase,
+    execution_phase,
     handle_cli_exception,
-    log_completion,
-    run_post_install_from_plan,
+    planning_phase,
     setup_logging_and_handle_errors,
 )
-from pkglink.execution_plan import ExecutionPlan, execute_plan, generate_execution_plan
-from pkglink.batch_config import (
+from pkglink.config import (
     DEFAULT_CONFIG_FILENAME,
-    PkglinkConfigError,
-    load_batch_contexts,
+    load_contexts,
 )
-from pkglink.installation import install_with_uvx
-from pkglink.models import PkglinkContext
+from pkglink.uvx import refresh_package
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class BatchEntry:
-    """Wrapper around a pkglink context and its execution artefacts."""
-
-    context: PkglinkContext
-    cache_dir: Path | None = None
-    dist_info_name: str | None = None
-    plan: ExecutionPlan | None = None
-
-    @property
-    def label(self) -> str:
-        return getattr(self.context.cli_args, 'entry_name', self.context.get_display_name())
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -48,7 +30,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--config',
         default=DEFAULT_CONFIG_FILENAME,
-        help='Path to batch configuration file (default: %(default)s)',
+        help='Path to pkglink configuration file (default: %(default)s)',
     )
     parser.add_argument(
         '--dry-run',
@@ -59,101 +41,80 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _download_phase(entries: list[BatchEntry]) -> None:
-    logger.info('batch_download_phase_start', total=len(entries))
-    for entry in entries:
-        context = entry.context
+def _refresh_package_for_entry(entry: WorkflowEntry) -> None:
+    """Refresh package in uvx for entries installed in .pkglink/.
+
+    Extracted to reduce cyclomatic complexity of run_batch.
+    """
+    context = entry.context
+    if not context.inside_pkglink:
+        return
+
+    target_dir = Path('.pkglink') / context.install_spec.project_name
+    if not target_dir.exists():
+        return
+
+    success = refresh_package(
+        context.module_name,
+        target_dir,
+    )
+    if success:
         logger.info(
-            'batch_download_entry_start',
-            entry=entry.label,
-            install_spec=context.install_spec.model_dump(),
+            'uvx_refresh_successful',
+            package=context.module_name,
+            _display_level=1,
         )
-        cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
-        entry.cache_dir = cache_dir
-        entry.dist_info_name = dist_info_name
-        logger.info(
-            'batch_download_entry_success',
-            entry=entry.label,
-            cache_dir=str(cache_dir),
-            dist_info_name=dist_info_name,
+    else:
+        logger.warning(
+            'uvx_refresh_failed',
+            package=context.module_name,
         )
-    logger.info('batch_download_phase_complete', succeeded=len(entries))
 
 
-def _planning_phase(entries: list[BatchEntry]) -> None:
-    logger.info('batch_planning_phase_start', total=len(entries))
-    for entry in entries:
-        context = entry.context
-        plan = generate_execution_plan(
-            context,
-            cache_dir=entry.cache_dir,
-            dist_info_name=entry.dist_info_name,
+def run_batch(
+    *,
+    config_path: Path,
+    verbose: int = 0,
+    dry_run: bool = False,
+    entry_filters: tuple[str, ...] | None = None,
+) -> int:
+    """Execute the batch workflow for the provided configuration."""
+    setup_logging_and_handle_errors(verbose=verbose)
+
+    try:
+        contexts = load_contexts(
+            config_path,
+            global_verbose=verbose,
+            global_dry_run=dry_run,
         )
-        entry.plan = plan
-        logger.info(
-            'batch_plan_created',
-            entry=entry.label,
-            operations=len(plan.file_operations),
-        )
-    logger.info('batch_planning_phase_complete')
+
+        if entry_filters:
+            filters = {entry.strip() for entry in entry_filters}
+            contexts = [context for context in contexts if getattr(context.cli_args, 'entry_name', '') in filters]
+
+        entries = [WorkflowEntry(context=context) for context in contexts]
+
+        download_phase(entries)
+        planning_phase(entries)
+        execution_phase(entries, post_execution=_refresh_package_for_entry)
+    except Exception as exc:  # noqa: BLE001 - top-level CLI guard
+        handle_cli_exception(exc)
+    else:
+        return 0
+    return 1
 
 
-def _execution_phase(entries: list[BatchEntry]) -> None:
-    logger.info('batch_execution_phase_start', total=len(entries))
-    for entry in entries:
-        context = entry.context
-        plan = entry.plan
-        if plan is None:
-            msg = f'Execution plan missing for entry {entry.label}'
-            raise RuntimeError(msg)
-
-        if context.cli_args.dry_run:
-            logger.info(
-                'batch_entry_dry_run',
-                entry=entry.label,
-                operations=len(plan.file_operations),
-            )
-            log_completion(context, plan)
-            continue
-
-        logger.info('batch_entry_execute', entry=entry.label)
-        execute_plan(plan)
-        run_post_install_from_plan(plan)
-        logger.info(
-            'workflow_completed',
-            total_operations=len(plan.file_operations),
-            **context.get_concise_summary(),
-        )
-        log_completion(context, plan)
-    logger.info('batch_execution_phase_complete')
-
-
-def main() -> int | None:
+def main() -> int:
+    """Main entry point for the pkglink_batch CLI."""
     parser = _build_parser()
     args = parser.parse_args()
 
     verbose = resolve_verbosity(args)
-    setup_logging_and_handle_errors(verbose=verbose)
-
-    try:
-        config_path = Path(args.config)
-        contexts = load_batch_contexts(
-            config_path,
-            global_verbose=verbose,
-            global_dry_run=args.dry_run,
-        )
-        entries = [BatchEntry(context=context) for context in contexts]
-
-        _download_phase(entries)
-        _planning_phase(entries)
-        _execution_phase(entries)
-        return 0
-    except PkglinkConfigError as exc:
-        logger.error('batch_configuration_error', error=str(exc))
-        handle_cli_exception(exc)
-    except Exception as exc:  # noqa: BLE001 - top-level CLI guard
-        handle_cli_exception(exc)
-    return 0
+    return run_batch(
+        config_path=Path(args.config),
+        verbose=verbose,
+        dry_run=args.dry_run,
+    )
 
 
 if __name__ == '__main__':

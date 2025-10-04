@@ -7,14 +7,15 @@ from hotlog import get_logger
 
 from pkglink.argparse import parse_pkglinkx_args
 from pkglink.cli.common import (
+    WorkflowEntry,
+    download_phase,
+    execution_phase,
     handle_cli_exception,
-    log_completion,
+    planning_phase,
     setup_context_and_validate,
     setup_logging_and_handle_errors,
-    unified_workflow,
 )
-from pkglink.installation import install_with_uvx
-from pkglink.models import PkglinkContext
+from pkglink.models import PkglinkContext, PkglinkxCliArgs
 from pkglink.uvx import refresh_package
 
 logger = get_logger(__name__)
@@ -51,14 +52,20 @@ def check_version_changed(
     return changed
 
 
-def setup_pkglinkx_context() -> tuple[PkglinkContext, Path]:
-    """Parse arguments and create context for pkglinkx.
+def setup_pkglinkx_context(
+    cli_args: PkglinkxCliArgs | None = None,
+) -> tuple[PkglinkContext, Path]:
+    """Create context for pkglinkx.
+
+    Args:
+        cli_args: Optional pre-parsed CLI arguments. When omitted, arguments
+            are parsed from ``sys.argv`` for the standalone CLI entry point.
 
     Returns:
         Tuple of (context, target_directory)
     """
-    # Parse arguments
-    cli_args = parse_pkglinkx_args()
+    if cli_args is None:
+        cli_args = parse_pkglinkx_args()
 
     # Configure logging and setup context (shared functions)
     setup_logging_and_handle_errors(verbose=cli_args.verbose)
@@ -96,6 +103,7 @@ def handle_version_tracking(
                 logger.info(
                     'uvx_refresh_successful',
                     package=context.module_name,
+                    _display_level=1,
                 )
             else:
                 logger.warning(
@@ -110,40 +118,45 @@ def handle_version_tracking(
         )
 
 
-def main() -> None:
-    """Main entry point for the pkglinkx CLI."""
+def run_with_cli_args(cli_args: PkglinkxCliArgs) -> None:
+    """Execute pkglinkx workflow given parsed CLI arguments."""
     try:
         # Setup context and target directory
-        context, target_dir = setup_pkglinkx_context()
+        context, target_dir = setup_pkglinkx_context(cli_args)
 
-        # Install and validate early to get package info for pyproject.toml generation
-        cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
-
-        # Run the unified workflow which handles both uvx structure and resource symlinks
-        # Pass the pre-installed cache to avoid duplicate installation
-        execution_plan = unified_workflow(
-            context,
-            cache_dir=cache_dir,
-            dist_info_name=dist_info_name,
+        entry = WorkflowEntry(
+            context=context,
+            metadata={'target_dir': target_dir},
         )
+        entries = [entry]
 
-        # Skip post-processing in dry-run mode
-        if context.cli_args.dry_run:
-            return
+        download_phase(entries)
+        planning_phase(entries)
 
-        # Handle version tracking and refresh (only if uvx install succeeded)
-        if execution_plan.uvx_cache_dir:
+        def _post_execution(work_entry: WorkflowEntry) -> None:
+            plan = work_entry.plan
+            if plan is None or plan.uvx_cache_dir is None:
+                return
+            target = work_entry.metadata.get('target_dir', target_dir)
             handle_version_tracking(
-                context,
-                execution_plan.uvx_cache_dir,
-                target_dir,
+                work_entry.context,
+                plan.uvx_cache_dir,
+                target,
             )
 
-        # Log completion
-        log_completion(context, execution_plan)
+        execution_phase(
+            entries,
+            post_execution=_post_execution,
+        )
 
     except Exception as e:  # noqa: BLE001 - broad exception for CLI
         handle_cli_exception(e)
+
+
+def main() -> None:
+    """Main entry point for the pkglinkx CLI."""
+    cli_args = parse_pkglinkx_args()
+    run_with_cli_args(cli_args)
 
 
 if __name__ == '__main__':

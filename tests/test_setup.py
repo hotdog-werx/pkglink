@@ -18,7 +18,8 @@ class TestPostInstallSetup:
         linked_path.mkdir()
 
         # Should not raise an error
-        run_post_install_setup(linked_path, tmp_path)
+        created = run_post_install_setup(linked_path, tmp_path)
+        assert created == []
 
     def test_empty_config_file(self, tmp_path: Path) -> None:
         """Test with empty pkglink.yaml."""
@@ -29,7 +30,8 @@ class TestPostInstallSetup:
         config_file.write_text('symlinks: []')
 
         # Should not raise an error
-        run_post_install_setup(linked_path, tmp_path)
+        created = run_post_install_setup(linked_path, tmp_path)
+        assert created == []
 
     def test_create_symlinks(self, tmp_path: Path) -> None:
         """Test creating symlinks from configuration."""
@@ -52,9 +54,12 @@ class TestPostInstallSetup:
         config_file.write_text(yaml.dump(config_data))
 
         # Run setup
-        run_post_install_setup(linked_path, tmp_path)
+        created = run_post_install_setup(linked_path, tmp_path)
 
         # Check that symlink was created
         target_file = tmp_path / '.editorconfig'
         assert target_file.exists()
         assert target_file.read_text() == 'root = true'
+        assert created == [
+            {'source': 'configs/.editorconfig', 'target': '.editorconfig'},
+        ]
