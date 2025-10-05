@@ -11,8 +11,6 @@ import pytest
 from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
-from pkglink.cli.pkglink_batch import main as pkglink_batch_main
-from pkglink.cli.pkglinkx import main as pkglinkx_main
 from pkglink.cli.plk import main as pkl_main
 
 
@@ -114,9 +112,9 @@ def run_pkglinkx(
 ) -> CliCommand:
     def _run(args: list[str], cwd: Path) -> Result:
         ctx = RunCommandContext(
-            cli_name='pkglinkx',
-            main_func=pkglinkx_main,
-            args=args,
+            cli_name='pkl',
+            main_func=pkl_main,
+            args=['tool', *args],
             cwd=cwd,
             capsys=capsys,
             caplog=caplog,
@@ -135,9 +133,9 @@ def run_pkglink_batch(
 ) -> CliCommand:
     def _run(args: list[str], cwd: Path) -> Result:
         ctx = RunCommandContext(
-            cli_name='pkglink-batch',
-            main_func=pkglink_batch_main,
-            args=args,
+            cli_name='pkl',
+            main_func=pkl_main,
+            args=['sync', *args],
             cwd=cwd,
             capsys=capsys,
             caplog=caplog,

@@ -2,8 +2,8 @@
 
 import argparse
 
-from pkglink.cli.pkglinkx import run_with_cli_args as run_pkglinkx
 from pkglink.cli.subparsers.link import run_with_cli_args as run_pkglink
+from pkglink.cli.subparsers.tool import run_with_cli_args as run_pkglinkx
 from pkglink.models import PkglinkCliArgs, PkglinkxCliArgs
 
 from . import _shared
