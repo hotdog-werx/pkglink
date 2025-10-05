@@ -11,9 +11,9 @@ import pytest
 from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
-from pkglink.cli.pkglink import main as pkglink_main
 from pkglink.cli.pkglink_batch import main as pkglink_batch_main
 from pkglink.cli.pkglinkx import main as pkglinkx_main
+from pkglink.cli.plk import main as pkl_main
 
 
 def strip_ansi(text: str) -> str:
@@ -93,9 +93,9 @@ def run_pkglink(
 ) -> CliCommand:
     def _run(args: list[str], cwd: Path) -> Result:
         ctx = RunCommandContext(
-            cli_name='pkglink',
-            main_func=pkglink_main,
-            args=args,
+            cli_name='pkl',
+            main_func=pkl_main,
+            args=['link', *args],
             cwd=cwd,
             capsys=capsys,
             caplog=caplog,

@@ -47,8 +47,8 @@ class PkgLinkTestCase:
         PkgLinkTestCase(
             name='codeguide_inside_pkglink',
             pkglink_args=[
+                '--inside',
                 'github:hotdog-werx/codeguide',
-                '--inside-pkglink',
             ],
             expected_symlink='.codeguide',
             expected_contents=[
@@ -202,7 +202,7 @@ def test_pkglink(
     # Verify .pkglink structure was created
     pkglink_dir = (
         test_dir / tcase.expected_symlink
-        if '--inside-pkglink' not in tcase.pkglink_args
+        if '--inside' not in tcase.pkglink_args
         else test_dir / '.pkglink' / tcase.expected_symlink
     )
 
