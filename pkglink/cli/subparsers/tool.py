@@ -6,7 +6,6 @@ from pathlib import Path
 import yaml
 from hotlog import get_logger
 
-from pkglink.argparse import parse_pkglinkx_args
 from pkglink.cli.common import (
     WorkflowEntry,
     download_phase,
@@ -56,20 +55,9 @@ def check_version_changed(
 
 
 def setup_pkglinkx_context(
-    cli_args: PkglinkxCliArgs | None = None,
+    cli_args: PkglinkxCliArgs,
 ) -> tuple[PkglinkContext, Path]:
-    """Create context for pkglinkx.
-
-    Args:
-        cli_args: Optional pre-parsed CLI arguments. When omitted, arguments
-            are parsed from ``sys.argv`` for the standalone CLI entry point.
-
-    Returns:
-        Tuple of (context, target_directory)
-    """
-    if cli_args is None:
-        cli_args = parse_pkglinkx_args()
-
+    """Create context for pkglinkx given parsed CLI arguments."""
     # Configure logging and setup context (shared functions)
     setup_logging_and_handle_errors(verbose=cli_args.verbose)
     context = setup_context_and_validate(cli_args)

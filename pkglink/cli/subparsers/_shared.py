@@ -90,11 +90,6 @@ def resolve_verbose(namespace: argparse.Namespace) -> int:
     return resolve_verbosity(namespace)
 
 
-def ensure_handlers_attached(parser: argparse.ArgumentParser) -> None:
-    """Configure parser to error when no subcommand is provided."""
-    parser.set_defaults(handler=None)
-
-
 def filter_entries_argument(parser: argparse.ArgumentParser) -> None:
     """Add the --entry option supporting multiple filters."""
     parser.add_argument(
