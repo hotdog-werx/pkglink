@@ -32,14 +32,12 @@ def test_load_contexts_merges_defaults(config_path: Path) -> None:
           skip_resources: true
           verbose: 2
 
-        links:
-          integration:
-            source: github:example/integration
+        github:
+          example/integration:
             symlink_name: .integration
             project_name: pkglink-integration
 
-          tbelt:
-            source: github:example/toolbelt
+          example/toolbelt:
             from: tbelt
             inside_pkglink: false
             skip_resources: false
@@ -51,7 +49,7 @@ def test_load_contexts_merges_defaults(config_path: Path) -> None:
 
     assert [ctx.entry_name or ctx.get_display_name() for ctx in contexts] == [
         'integration',
-        'tbelt',
+        'toolbelt',
     ]
 
     first, second = contexts
@@ -62,7 +60,7 @@ def test_load_contexts_merges_defaults(config_path: Path) -> None:
     assert first.cli_args.verbose == 2
     assert first.cli_args.dry_run is False
     assert first.install_spec.name == 'integration'
-    assert first.cli_args.source.raw == 'github:example/integration'
+    assert first.cli_args.source.raw == 'github:example/integration@master'
     assert first.cli_args.symlink_name == '.integration'
     assert first.cli_args.project_name == 'pkglink-integration'
 
@@ -71,21 +69,21 @@ def test_load_contexts_merges_defaults(config_path: Path) -> None:
     assert second.cli_args.dry_run is True
     assert second.install_spec.name == 'tbelt'
     assert second.module_name == 'toolbelt'
-    assert second.cli_args.source.raw == 'github:example/toolbelt'
+    assert second.cli_args.source.raw == 'github:example/toolbelt@master'
     assert second.cli_args.from_package is not None
     assert second.cli_args.from_package.raw == 'tbelt'
     assert second.cli_args.project_name is None
 
-    config = load_config(config_path)
+    config, normalized_links = load_config(config_path)
     assert isinstance(config, PkglinkConfig)
-    assert set(config.links.keys()) == {'integration', 'tbelt'}
+    assert set(normalized_links.keys()) == {'integration', 'toolbelt'}
 
 
 @pytest.mark.parametrize(
     'content',
     [
-        'links:\n  missing_source: {}',
-        'defaults:\n  inside_pkglink: "maybe"\n\nlinks:\n  nope: {source: file:./pkg}',
+        'github:\n  missing_source: {}',
+        'defaults:\n  inside_pkglink: "maybe"\n\ngithub:\n  "example/nope": {}',
     ],
 )
 def test_load_config_invalid_values(config_path: Path, content: str) -> None:
@@ -111,14 +109,13 @@ def test_build_contexts_accepts_loaded_config(config_path: Path) -> None:
     write_config(
         config_path,
         """
-        links:
-          integration:
-            source: github:example/integration
+        github:
+          example/integration: master
         """,
     )
 
-    config = load_config(config_path)
-    contexts = build_contexts(config, config_path=config_path)
+    config, normalized_links = load_config(config_path)
+    contexts = build_contexts(config, normalized_links, config_path=config_path)
     assert len(contexts) == 1
     assert contexts[0].entry_name == 'integration'
 
@@ -127,12 +124,10 @@ def test_duplicate_project_names_raise(config_path: Path) -> None:
     write_config(
         config_path,
         """
-                links:
-                    first:
-                        source: github:example/first
+                github:
+                    example/first:
                         project_name: shared-project
-                    second:
-                        source: github:example/second
+                    example/second:
                         project_name: shared-project
                 """,
     )
@@ -151,12 +146,10 @@ def test_duplicate_symlink_names_raise(config_path: Path) -> None:
     write_config(
         config_path,
         """
-                links:
-                    alpha:
-                        source: github:example/alpha
+                github:
+                    example/alpha:
                         symlink_name: .shared
-                    beta:
-                        source: github:example/beta
+                    example/beta:
                         symlink_name: .shared
                 """,
     )

@@ -17,15 +17,15 @@ def pkglink_config_template(tmp_path: Path) -> Path:
               skip_resources: false
               verbose: 2
 
-            links:
-              integration_uvx:
-                source: github:hotdog-werx/pkglink-integration-pkg@v0.0.1
+            github:
+              hotdog-werx/pkglink-integration-pkg:
+                version: v0.0.1
                 project_name: pkglink-integration-pkg
                 symlink_name: .pkglink-integration
 
-              integration_resources:
-                source: github:hotdog-werx/pkglink-integration-pkg@v0.0.1
-                symlink_name: .integration-out
+              hotdog-werx/codeguide:
+                version: master
+                symlink_name: .codeguide-resources
                 inside_pkglink: false
             """,
         ),
@@ -60,10 +60,11 @@ def test_pkglink_batch_executes_entries(
     uvx_symlink = pkglink_dir / '.pkglink-integration'
     assert_exists_and_type(uvx_symlink)
 
-    resource_symlink = project_dir / '.integration-out'
+    # Codeguide should be installed at root (inside_pkglink: false)
+    resource_symlink = project_dir / '.codeguide-resources'
     assert_exists_and_type(resource_symlink)
 
-    # Post-install symlinks should land at project root
+    # Post-install symlinks from pkglink-integration-pkg should land at project root
     assert_exists_and_type(project_dir / 'index.html')
     assert_exists_and_type(project_dir / 'theme' / 'inner' / 'style.css')
 
@@ -85,13 +86,13 @@ def test_pkglink_batch_download_failure_stops_execution(
             defaults:
               inside_pkglink: true
 
-            links:
-              good:
-                source: github:hotdog-werx/pkglink-integration-pkg@v0.0.1
+            github:
+              hotdog-werx/pkglink-integration-pkg:
+                version: v0.0.1
                 project_name: pkglink-integration-pkg
 
-              broken:
-                source: github:hotdog-werx/does-not-exist@v0.0.1
+              hotdog-werx/does-not-exist:
+                version: v0.0.1
                 inside_pkglink: false
             """,
         ),

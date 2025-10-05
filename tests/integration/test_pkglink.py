@@ -224,7 +224,7 @@ def test_pkglink_dry_run(tmp_path: Path, run_pkglink: CliCommand) -> None:
         test_dir,
     )
     assert result.returncode == 0
-    assert 'dry_run_plan_complete' in result.stdout
+    assert 'would link 1 package' in result.stdout
 
     # Verify no symlink was created
     pkglink_dir = test_dir / '.codeguide'

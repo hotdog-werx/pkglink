@@ -249,13 +249,36 @@ def _normalize_github_entry(
 ) -> NormalizedEntry:
     """Convert GitHub entry to NormalizedEntry."""
     # key format: "org/repo"
+    if '/' not in key or key.count('/') != 1:
+        msg = f"github entry key '{key}' must be in 'org/repo' format"
+        raise PkglinkConfigError(msg)
     if isinstance(value, str):
         # Simple format: "org/repo: version"
         source = f'github:{key}@{value}'
         return NormalizedEntry(source=source)
 
     # Detailed format
-    version = value.version or 'main'
+    # If all fields are None, treat as invalid
+    if all(
+        getattr(value, field) is None
+        for field in [
+            'version',
+            'directory',
+            'symlink_name',
+            'inside_pkglink',
+            'skip_resources',
+            'no_setup',
+            'force',
+            'project_name',
+            'dry_run',
+            'verbose',
+            'from_spec',
+        ]
+    ):
+        msg = f"github entry '{key}' is missing required fields"
+        raise PkglinkConfigError(msg)
+
+    version = value.version or 'master'
     source = f'github:{key}@{version}'
     kwargs = {
         'source': source,
@@ -337,36 +360,51 @@ def _normalize_local_entry(
     return NormalizedEntry(**kwargs)
 
 
+def _process_github_entries(
+    github: dict[str, str | GitHubEntry],
+    links: dict[str, NormalizedEntry],
+) -> None:
+    if not github:
+        return
+    for key, value in github.items():
+        entry_name = key.split('/')[-1]
+        if entry_name in links:
+            entry_name = key.replace('/', '_')
+        links[entry_name] = _normalize_github_entry(key, value)
+
+
+def _process_python_package_entries(
+    packages: dict[str, str | PythonPackageEntry],
+    links: dict[str, NormalizedEntry],
+) -> None:
+    if not packages:
+        return
+    for key, value in packages.items():
+        entry_name = key
+        if entry_name in links:
+            entry_name = f'pkg_{key}'
+        links[entry_name] = _normalize_python_package_entry(key, value)
+
+
+def _process_local_entries(
+    local: dict[str, str | LocalEntry],
+    links: dict[str, NormalizedEntry],
+) -> None:
+    if not local:
+        return
+    for key, value in local.items():
+        entry_name = Path(key).name
+        if entry_name in links:
+            entry_name = f'local_{Path(key).name}'
+        links[entry_name] = _normalize_local_entry(key, value)
+
+
 def _convert_to_links(config: PkglinkConfig) -> dict[str, NormalizedEntry]:
     """Convert new structured format to unified links format."""
     links: dict[str, NormalizedEntry] = {}
-
-    # Process GitHub entries
-    if config.github:
-        for key, value in config.github.items():
-            # Use repo name as entry name
-            entry_name = key.split('/')[-1]  # Extract repo name from org/repo
-            if entry_name in links:
-                entry_name = key.replace('/', '_')  # Use full path if conflict
-            links[entry_name] = _normalize_github_entry(key, value)
-
-    # Process Python package entries
-    if config.python_packages:
-        for key, value in config.python_packages.items():
-            entry_name = key
-            if entry_name in links:
-                entry_name = f'pkg_{key}'  # Prefix if conflict
-            links[entry_name] = _normalize_python_package_entry(key, value)
-
-    # Process local entries
-    if config.local:
-        for key, value in config.local.items():
-            # Use directory name as entry name
-            entry_name = Path(key).name
-            if entry_name in links:
-                entry_name = f'local_{Path(key).name}'  # Prefix if conflict
-            links[entry_name] = _normalize_local_entry(key, value)
-
+    _process_github_entries(config.github or {}, links)
+    _process_python_package_entries(config.python_packages or {}, links)
+    _process_local_entries(config.local or {}, links)
     return links
 
 

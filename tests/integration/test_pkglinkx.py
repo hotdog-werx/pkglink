@@ -107,7 +107,7 @@ def test_pkglinkx_dry_run(tmp_path: Path, run_pkglinkx: CliCommand) -> None:
         test_dir,
     )
     assert result.returncode == 0
-    assert 'dry_run_plan_complete' in result.stdout
+    assert 'would link 1 package' in result.stdout
 
     # Verify no symlink was created
     base_pkglink_dir = test_dir / '.pkglink'
