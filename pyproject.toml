@@ -19,10 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-plk = "pkglink.cli.plk:main"
 pkglink = "pkglink.cli.pkglink:main"
-pkglinkx = "pkglink.cli.pkglinkx:main"
-pkglink-batch = "pkglink.cli.pkglink_batch:main"
 
 [dependency-groups]
 dev = [
