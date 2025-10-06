@@ -1,4 +1,4 @@
-"""plk link subcommand."""
+"""pkglink link subcommand."""
 
 import argparse
 

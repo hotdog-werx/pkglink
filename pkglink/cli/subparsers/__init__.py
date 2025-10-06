@@ -1,4 +1,4 @@
-"""Subparser registrations for the unified plk CLI."""
+"""Subparser registrations for the unified pkglink CLI."""
 
 import argparse
 
@@ -6,7 +6,7 @@ from . import link, sync, tool
 
 
 def register_all(subparsers: argparse._SubParsersAction) -> None:
-    """Register all plk subcommands."""
+    """Register all pkglink subcommands."""
     link.register(subparsers)
     tool.register(subparsers)
     sync.register(subparsers)
