@@ -61,5 +61,5 @@ class TestPostInstallSetup:
         assert target_file.exists()
         assert target_file.read_text() == 'root = true'
         assert created == [
-            {'source': 'configs/.editorconfig', 'target': '.editorconfig'},
+            {'source': str(Path('configs') / '.editorconfig'), 'target': '.editorconfig'},
         ]
