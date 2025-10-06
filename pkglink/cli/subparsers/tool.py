@@ -1,21 +1,24 @@
-"""Enhanced pkglinkx CLI supporting GitHub, PyPI, and local sources."""
+"""plk tool subcommand."""
 
+import argparse
 from pathlib import Path
 
 import yaml
 from hotlog import get_logger
 
-from pkglink.argparse import parse_pkglinkx_args
 from pkglink.cli.common import (
+    WorkflowEntry,
+    download_phase,
+    execution_phase,
     handle_cli_exception,
-    log_completion,
+    planning_phase,
     setup_context_and_validate,
     setup_logging_and_handle_errors,
-    unified_workflow,
 )
-from pkglink.installation import install_with_uvx
-from pkglink.models import PkglinkContext
+from pkglink.models import PkglinkContext, PkglinkxCliArgs
 from pkglink.uvx import refresh_package
+
+from . import _shared
 
 logger = get_logger(__name__)
 
@@ -51,15 +54,10 @@ def check_version_changed(
     return changed
 
 
-def setup_pkglinkx_context() -> tuple[PkglinkContext, Path]:
-    """Parse arguments and create context for pkglinkx.
-
-    Returns:
-        Tuple of (context, target_directory)
-    """
-    # Parse arguments
-    cli_args = parse_pkglinkx_args()
-
+def setup_pkglinkx_context(
+    cli_args: PkglinkxCliArgs,
+) -> tuple[PkglinkContext, Path]:
+    """Create context for pkglinkx given parsed CLI arguments."""
     # Configure logging and setup context (shared functions)
     setup_logging_and_handle_errors(verbose=cli_args.verbose)
     context = setup_context_and_validate(cli_args)
@@ -96,6 +94,7 @@ def handle_version_tracking(
                 logger.info(
                     'uvx_refresh_successful',
                     package=context.module_name,
+                    _display_level=1,
                 )
             else:
                 logger.warning(
@@ -110,41 +109,78 @@ def handle_version_tracking(
         )
 
 
-def main() -> None:
-    """Main entry point for the pkglinkx CLI."""
+def run_with_cli_args(cli_args: PkglinkxCliArgs) -> None:
+    """Execute pkglinkx workflow given parsed CLI arguments."""
     try:
         # Setup context and target directory
-        context, target_dir = setup_pkglinkx_context()
+        context, target_dir = setup_pkglinkx_context(cli_args)
 
-        # Install and validate early to get package info for pyproject.toml generation
-        cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
-
-        # Run the unified workflow which handles both uvx structure and resource symlinks
-        # Pass the pre-installed cache to avoid duplicate installation
-        execution_plan = unified_workflow(
-            context,
-            cache_dir=cache_dir,
-            dist_info_name=dist_info_name,
+        entry = WorkflowEntry(
+            context=context,
+            metadata={'target_dir': target_dir},
         )
+        entries = [entry]
 
-        # Skip post-processing in dry-run mode
-        if context.cli_args.dry_run:
-            return
+        download_phase(entries)
+        planning_phase(entries)
 
-        # Handle version tracking and refresh (only if uvx install succeeded)
-        if execution_plan.uvx_cache_dir:
+        def _post_execution(work_entry: WorkflowEntry) -> None:
+            plan = work_entry.plan
+            if plan is None or plan.uvx_cache_dir is None:
+                return
+            target = work_entry.metadata.get('target_dir', target_dir)
             handle_version_tracking(
-                context,
-                execution_plan.uvx_cache_dir,
-                target_dir,
+                work_entry.context,
+                plan.uvx_cache_dir,
+                target,
             )
 
-        # Log completion
-        log_completion(context, execution_plan)
+        execution_phase(
+            entries,
+            post_execution=_post_execution,
+        )
 
     except Exception as e:  # noqa: BLE001 - broad exception for CLI
         handle_cli_exception(e)
 
 
-if __name__ == '__main__':
-    main()
+def _build_cli_args(
+    namespace: argparse.Namespace,
+    verbose: int,
+) -> PkglinkxCliArgs:
+    return PkglinkxCliArgs(
+        source=namespace.source,
+        directory=namespace.directory,
+        symlink_name=namespace.symlink_name,
+        skip_resources=getattr(namespace, 'skip_resources', False),
+        verbose=verbose,
+        from_package=namespace.from_package,
+        project_name=namespace.project_name,
+        no_setup=namespace.no_setup,
+        force=namespace.force,
+        dry_run=namespace.dry_run,
+    )
+
+
+def _handle(namespace: argparse.Namespace) -> int:
+    verbose = _shared.resolve_verbose(namespace)
+    cli_args = _build_cli_args(namespace, verbose)
+    run_with_cli_args(cli_args)
+    return 0
+
+
+def register(subparsers: argparse._SubParsersAction) -> None:
+    """Register the tool subcommand."""
+    parent = _shared.build_common_parent()
+    parser = subparsers.add_parser(
+        'tool',
+        parents=[parent],
+        aliases=['x'],
+        help='Prepare a package or repository for execution via uvx',
+    )
+    _shared.apply_install_arguments(
+        parser,
+        include_inside=False,
+        include_skip_resources=True,
+    )
+    parser.set_defaults(handler=_handle)

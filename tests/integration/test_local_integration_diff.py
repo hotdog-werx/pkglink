@@ -14,8 +14,9 @@ def test_local_install_default(
     result = run_pkglinkx([str(INTEGRATION_DIR)], test_dir)
     assert result.returncode != 0
     step1_snippets = [
-        'Could not find dist-info for expected package',
-        'provide --project-name matching the PyPI/project name',
+        'Could not find dis',  # May be line-wrapped in output
+        'for expected package',
+        'provide --project-name matching',
         'python_project-0.0.2.dist-info',
     ]
     assert_contains_all(result.all_output, step1_snippets, 'default install')
@@ -36,7 +37,7 @@ def test_local_install_with_project_name(
         'package_root_not_found',
         'use of --from may be needed to specify correct module',
         'no_package_subdir_found_skipping_resource_symlink',
-        'FileNotFoundError: Source does not exist:',
+        'Source does not exist:',
     ]
     assert_contains_all(
         result.all_output,
@@ -88,7 +89,7 @@ def test_local_install_with_from_module_name_utils(
         test_dir,
     )
     assert result.returncode == 0
-    assert 'success' in (result.stdout or '').lower() or 'linked' in (result.stdout or '').lower()
+    assert 'linked 1 package' in result.all_output
     pkglink_dir = test_dir / '.pkglink' / 'python-project'
     assert pkglink_dir.exists()
     assert pkglink_dir.is_dir()

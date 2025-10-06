@@ -233,7 +233,7 @@ def _plan_resource_symlink(
                 context.module_name,
                 context.cli_args.directory,
             )
-        except Exception:
+        except Exception as exc:
             # For pkglinkx, warn and skip; for pkglink, re-raise
             if context.is_pkglinkx_cli:
                 logger.warning(
@@ -244,7 +244,9 @@ def _plan_resource_symlink(
                     suggestion='Use --skip-resources to avoid this warning if the package has no resources',
                 )
                 return
-            raise
+            resource_source = cache_dir / context.module_name / context.cli_args.directory
+            msg = f'Resource directory not found: {resource_source}'
+            raise RuntimeError(msg) from exc
         resource_source = package_root / context.cli_args.directory
     else:
         # Fallback to resolve_source_path (triggers uvx call)
@@ -310,7 +312,11 @@ def generate_execution_plan(
         effective_cache_dir = plan.uvx_cache_dir
     _plan_resource_symlink(context, plan, base_dir, effective_cache_dir)
 
-    logger.info('execution_plan_generated', **plan.get_summary())
+    logger.info(
+        'execution_plan_generated',
+        _display_level=1,
+        **plan.get_summary(),
+    )
     return plan
 
 

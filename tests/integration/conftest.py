@@ -12,7 +12,6 @@ from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
 from pkglink.cli.pkglink import main as pkglink_main
-from pkglink.cli.pkglinkx import main as pkglinkx_main
 
 
 def strip_ansi(text: str) -> str:
@@ -94,7 +93,7 @@ def run_pkglink(
         ctx = RunCommandContext(
             cli_name='pkglink',
             main_func=pkglink_main,
-            args=args,
+            args=['link', *args],
             cwd=cwd,
             capsys=capsys,
             caplog=caplog,
@@ -113,9 +112,30 @@ def run_pkglinkx(
 ) -> CliCommand:
     def _run(args: list[str], cwd: Path) -> Result:
         ctx = RunCommandContext(
-            cli_name='pkglinkx',
-            main_func=pkglinkx_main,
-            args=args,
+            cli_name='pkglink',
+            main_func=pkglink_main,
+            args=['tool', *args],
+            cwd=cwd,
+            capsys=capsys,
+            caplog=caplog,
+            mocker=mocker,
+        )
+        return _run_command(ctx)
+
+    return _run
+
+
+@pytest.fixture
+def run_pkglink_batch(
+    capsys: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+    mocker: MockerFixture,
+) -> CliCommand:
+    def _run(args: list[str], cwd: Path) -> Result:
+        ctx = RunCommandContext(
+            cli_name='pkglink',
+            main_func=pkglink_main,
+            args=['sync', *args],
             cwd=cwd,
             capsys=capsys,
             caplog=caplog,

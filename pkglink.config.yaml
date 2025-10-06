@@ -1,0 +1,46 @@
+# pkglink.config.yaml
+# Human-readable configuration for pkglink batch operations
+
+# Optional: Set defaults that apply to all packages
+# defaults:
+#   inside_pkglink: true  # Install into .pkglink/ (default: true)
+#   directory: resources   # Target directory for resources (default: resources)
+#   verbose: 0            # Verbosity level (default: 0)
+
+# GitHub repositories
+github:
+  # Simple format: org/repo: version
+  hotdog-werx/codeguide: master
+
+  # Detailed format with options
+  hotdog-werx/pkglink-integration-pkg:
+    version: v0.0.1
+    # project_name: custom-name  # Override project name
+    # directory: configs         # Override target directory
+    # symlink_name: my-link      # Custom symlink name
+    # from: package-name         # Specify which package to use
+    # inside_pkglink: false      # Install at root instead of .pkglink/
+
+# PyPI packages
+python-packages:
+  # Simple format: package-name (installs latest)
+  # rich
+
+  # With version specifier
+  # requests: ">=2.28.0"
+
+  # Detailed format
+  toolbelt:
+    from: tbelt # PyPI name differs from import name
+# version: "1.0.0"
+# project_name: custom-name
+
+# Local paths
+local:
+# Simple format: /path/to/package
+# ./local-integration
+
+# Detailed format
+# ./my-local-package:
+#   project_name: my-package
+#   from: module_name

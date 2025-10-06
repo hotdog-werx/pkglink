@@ -41,7 +41,7 @@ def _create_additional_symlink(
     spec: SymlinkSpec,
     linked_path: Path,
     base_dir: Path,
-) -> None:
+) -> dict[str, str]:
     """Create a single additional symlink from the configuration."""
     source = linked_path / spec.source
     target = base_dir / spec.target
@@ -52,41 +52,64 @@ def _create_additional_symlink(
         allow_additional_symlink_removal=True,
     )
 
+    try:
+        source_display = str(source.relative_to(linked_path))
+    except ValueError:  # pragma: no cover - defensive
+        source_display = str(source)
+
+    try:
+        target_display = str(target.relative_to(base_dir))
+    except ValueError:  # pragma: no cover - defensive
+        target_display = str(target)
+
+    return {'source': source_display, 'target': target_display}
+
 
 def _process_symlinks(
     config: PostInstallConfig,
     linked_path: Path,
     base_dir: Path,
-) -> None:
+) -> list[dict[str, str]]:
     """Process all symlinks from the configuration."""
-    for spec in config.symlinks:
-        _create_additional_symlink(spec, linked_path, base_dir)
+    return [_create_additional_symlink(spec, linked_path, base_dir) for spec in config.symlinks]
 
 
 def run_post_install_setup(
     linked_path: Path,
     base_dir: Path,
-) -> None:
-    """Run post-install setup for a linked package."""
+) -> list[dict[str, str]]:
+    """Run post-install setup for a linked package.
+
+    Returns a list describing any additional symlinks created.
+    """
+    created_symlinks: list[dict[str, str]] = []
     config_path = _find_config_file(linked_path)
     if not config_path:
         logger.debug(
             'no_post_install_config_found',
             linked_path=str(linked_path),
         )
-        return
+        return created_symlinks
 
-    logger.info('running_post_install_setup', config_path=str(config_path))
+    logger.info(
+        'running_post_install_setup',
+        config_path=str(config_path),
+        _display_level=1,
+    )
 
     try:
         yaml_data = _load_yaml_config(config_path)
         config = PostInstallConfig.model_validate(yaml_data)
-        _process_symlinks(config, linked_path, base_dir)
+        created_symlinks = _process_symlinks(config, linked_path, base_dir)
         logger.info(
             'post_install_setup_completed',
             symlinks_created=len(config.symlinks),
+            _display_level=1,
         )
     except Exception as e:  # noqa: BLE001 - broad exception to catch all setup errors
         # A bad setup configuration should not block the main install
         # But we may need to add a flag later to make this stricter
         logger.warning('post_install_setup_failed', error=str(e))
+        return created_symlinks
+    else:
+        return created_symlinks

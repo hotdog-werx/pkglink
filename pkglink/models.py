@@ -39,6 +39,23 @@ class SourceSpec(BaseModel):
         StringConstraints(min_length=1, strip_whitespace=True),
     ]  # Required project name
 
+    def canonical_spec(self) -> str:
+        """Return a canonical representation of the source specification."""
+        if self.source_type == 'github':
+            org = self.org or ''
+            delimiter = '/' if org else ''
+            base = f'github:{org}{delimiter}{self.name}'
+        elif self.source_type == 'package':
+            base = f'python-package:{self.name}'
+        else:
+            path = self.local_path or self.name
+            base = f'local:{path}'
+
+        if self.version:
+            base = f'{base}@{self.version}'
+
+        return base
+
 
 class LinkTarget(BaseModel):
     """Represents the target for a symlink operation."""
@@ -97,6 +114,22 @@ class PkglinkxCliArgs(BaseCliArgs):
     skip_resources: bool = False
 
 
+class PkglinkBatchCliArgs(BaseCliArgs):
+    """Arguments derived from mise.toml configuration for batch CLI."""
+
+    skip_resources: bool = False
+    inside_pkglink: bool = False
+    entry_name: Annotated[
+        str,
+        StringConstraints(min_length=1, strip_whitespace=True),
+    ] = 'pkglink_entry'
+    cli_label: Annotated[
+        str,
+        StringConstraints(min_length=1, strip_whitespace=True),
+    ] = 'pkglink_batch'
+    config_path: str | None = None
+
+
 class PkglinkxMetadata(BaseModel):
     """Metadata for pkglinkx installations."""
 
@@ -139,6 +172,13 @@ class PkglinkContext(BaseModel):
         return getattr(self.cli_args, 'inside_pkglink', False)
 
     @property
+    def entry_name(self) -> str | None:
+        """Return the configuration entry name when available."""
+        if isinstance(self.cli_args, PkglinkBatchCliArgs):
+            return self.cli_args.entry_name
+        return None
+
+    @property
     def is_pkglink_cli(self) -> bool:
         """Check if this is from the pkglink CLI."""
         return isinstance(self.cli_args, PkglinkCliArgs)
@@ -147,6 +187,22 @@ class PkglinkContext(BaseModel):
     def is_pkglinkx_cli(self) -> bool:
         """Check if this is from the pkglinkx CLI."""
         return isinstance(self.cli_args, PkglinkxCliArgs)
+
+    @property
+    def is_batch_cli(self) -> bool:
+        """Check if this context originated from the batch CLI."""
+        return isinstance(self.cli_args, PkglinkBatchCliArgs)
+
+    @property
+    def cli_label(self) -> str:
+        """Friendly CLI label for logging."""
+        if self.is_pkglink_cli:
+            return 'pkglink'
+        if self.is_pkglinkx_cli:
+            return 'pkglinkx'
+        if self.is_batch_cli:
+            return getattr(self.cli_args, 'cli_label', 'pkglink_batch')
+        return 'pkglink'
 
     @property
     def resolved_symlink_name(self) -> str:
@@ -165,6 +221,11 @@ class PkglinkContext(BaseModel):
         """Get the source type (github, package, local)."""
         return self.install_spec.source_type
 
+    @property
+    def canonical_source(self) -> str:
+        """Canonical source representation for logging."""
+        return self.install_spec.canonical_spec()
+
     def get_display_name(self) -> str:
         """Get a human-readable display name for logging."""
         if self.source_type == 'github':
@@ -172,6 +233,14 @@ class PkglinkContext(BaseModel):
         if self.source_type == 'local':
             return f'local:{self.install_spec.local_path or self.install_spec.name}'
         return self.install_spec.name
+
+    @property
+    def primary_target_display(self) -> str:
+        """Get the primary target path for the linked package."""
+        target = Path(self.resolved_symlink_name)
+        if self.inside_pkglink:
+            target = Path('.pkglink') / target
+        return str(target)
 
     def model_dump_for_logging(self) -> dict:
         """Get a dict suitable for verbose logging."""
@@ -182,28 +251,40 @@ class PkglinkContext(BaseModel):
             'display_name': self.get_display_name(),
             'skip_resources': self.skip_resources,
             'inside_pkglink': self.inside_pkglink,
-            'cli_type': 'pkglink' if self.is_pkglink_cli else 'pkglinkx',
+            'cli_type': self.cli_label,
             'install_spec': self.install_spec.model_dump(),
             'cli_args': self.cli_args.model_dump(),
         }
 
     def get_concise_summary(self) -> dict:
         """Get a concise summary for normal logging (not verbose)."""
-        base = {
+        base: dict[str, Any] = {
             'display_name': self.get_display_name(),
             'source_type': self.source_type,
-            'target_directory': self.cli_args.directory,
-            'dry_run': self.cli_args.dry_run,
-            'cli_type': 'pkglink' if self.is_pkglink_cli else 'pkglinkx',
         }
+
+        if self.install_spec.version:
+            base['version'] = self.install_spec.version
+
+        if self.cli_args.directory != 'resources':
+            base['target_directory'] = self.cli_args.directory
+        else:
+            base['_verbose_target_directory'] = self.cli_args.directory
+
+        if self.cli_args.dry_run:
+            base['dry_run'] = True
+        else:
+            base['_verbose_dry_run'] = False
+
+        base['_verbose_cli_type'] = self.cli_label
 
         # Only include names if they're different (interesting case)
         if self.install_spec.name != self.module_name:
             base.update(
                 {
-                    'install_spec': self.install_spec.name,
-                    'lookup_module': self.module_name,
-                    'note': 'Installing different package than lookup module',
+                    '_verbose_install_spec': self.install_spec.name,
+                    '_verbose_lookup_module': self.module_name,
+                    '_verbose_note': 'Installing different package than lookup module',
                 },
             )
 

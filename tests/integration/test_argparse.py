@@ -50,8 +50,8 @@ def test_pkglink_argparse_error_cases(
     result = run_pkglink(errcase.args, test_dir)
     assert result.returncode == 2
     snippets = [
-        'usage: pkglink',
-        'pkglink: error:',
+        'usage:',
+        'error:',
         errcase.expected_message,
     ]
     assert_contains_all(result.stderr, snippets, errcase.name)

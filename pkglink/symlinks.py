@@ -63,11 +63,16 @@ def create_symlink(
         target=str(target),
         source=str(source),
         _verbose_force=force,
+        _display_level=1,
     )
 
     if target.exists():
         if force:
-            logger.info('removing_existing_target', target=str(target))
+            logger.info(
+                'removing_existing_target',
+                target=str(target),
+                _display_level=1,
+            )
             remove_target(
                 target,
                 expected_name=target.name,
@@ -88,7 +93,7 @@ def create_symlink(
         # Ensure parent directories exist for the target
         target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(source, target_is_directory=source.is_dir())
-        logger.info('symlink_created_successfully')
+        logger.info('symlink_created_successfully', _display_level=1)
         return True
 
     # Fallback to copying
@@ -101,7 +106,7 @@ def create_symlink(
     else:
         logger.debug('copying_file')
         shutil.copy2(source, target)
-    logger.info('copy_created_successfully')
+    logger.info('copy_created_successfully', _display_level=1)
     return False
 
 

@@ -47,8 +47,8 @@ class PkgLinkTestCase:
         PkgLinkTestCase(
             name='codeguide_inside_pkglink',
             pkglink_args=[
+                '--inside',
                 'github:hotdog-werx/codeguide',
-                '--inside-pkglink',
             ],
             expected_symlink='.codeguide',
             expected_contents=[
@@ -197,12 +197,12 @@ def test_pkglink(
 
     result = run_pkglink(tcase.pkglink_args, test_dir)
     assert result.returncode == 0
-    assert 'pkglink_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Verify .pkglink structure was created
     pkglink_dir = (
         test_dir / tcase.expected_symlink
-        if '--inside-pkglink' not in tcase.pkglink_args
+        if '--inside' not in tcase.pkglink_args
         else test_dir / '.pkglink' / tcase.expected_symlink
     )
 
@@ -224,7 +224,7 @@ def test_pkglink_dry_run(tmp_path: Path, run_pkglink: CliCommand) -> None:
         test_dir,
     )
     assert result.returncode == 0
-    assert 'dry_run_plan_complete' in result.stdout
+    assert 'would link 1 package' in result.stdout
 
     # Verify no symlink was created
     pkglink_dir = test_dir / '.codeguide'
@@ -240,7 +240,7 @@ def test_pkglink_new_name(tmp_path: Path, run_pkglink: CliCommand) -> None:
         test_dir,
     )
     assert result.returncode == 0
-    assert 'pkglink_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Verify no symlink was created
     pkglink_dir = test_dir / '.codeguide'
@@ -280,7 +280,7 @@ def test_pkglink_error_cases(
 
     result = run_pkglink(errcase.args, test_dir)
     assert result.returncode == 1
-    assert 'EXCEPTION: cli_operation_failed' in result.stdout
+    assert 'ERROR: cli_operation_failed' in result.stdout
     assert errcase.expected_message in result.stdout.replace('\n', ' ')
 
 
@@ -296,7 +296,7 @@ def test_pkglink_self_link(tmp_path: Path, run_pkglink: CliCommand) -> None:
 
     result = run_pkglink(['.'], local_integration_dst)
     assert result.returncode == 0
-    assert 'pkglink_completed' in result.stdout
+    assert 'linked 1 package' in result.stdout
 
     # Verify no symlink was created
     link_dir = local_integration_dst / '.local-integration'
