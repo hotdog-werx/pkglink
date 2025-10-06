@@ -3,14 +3,13 @@
 Create symlinks to python package directories from PyPI packages or GitHub repos
 into your current working directory.
 
-This package provides three complementary tools:
+This package provides a unified CLI with three complementary subcommands:
 
-- **`pkglink`**: For accessing resources from any Python package or GitHub repo
-- **`pkglinkx`**: For making GitHub Python projects `uvx`-compatible for CLI
-  execution
-- **`pkglink-batch`**: For reading project configuration from
-  `pkglink.config.yaml` and processing multiple pkglink operations in staged
-  batches
+- **`pkglink link`**: Access resources from any Python package or GitHub repo
+- **`pkglink tool`**: Make GitHub Python projects `uvx`-compatible for CLI
+  execution inside `.pkglink/`
+- **`pkglink sync`**: Read project configuration from `pkglink.config.yaml` and
+  process multiple pkglink operations in staged batches
 
 ## ⚠️ Requirements
 
@@ -34,7 +33,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Overview
 
-### pkglink
+### pkglink link
 
 `pkglink` is a CLI tool designed for configuration sharing and quick access to
 package resources. It allows you to symlink specific directories (like
@@ -42,16 +41,16 @@ package resources. It allows you to symlink specific directories (like
 current directory without having to install them globally or manually download
 files.
 
-### pkglinkx
+### pkglink tool
 
-`pkglinkx` is designed specifically for GitHub Python repositories. It creates a
-`.pkglink` directory structure that makes any GitHub Python project compatible
-with `uvx` for CLI tool execution, even if the project wasn't originally
-designed for it.
+`pkglink tool` is designed specifically for GitHub Python repositories. It
+creates a `.pkglink` directory structure that makes any GitHub Python project
+compatible with `uvx` for CLI tool execution, even if the project wasn't
+originally designed for it.
 
-### pkglink-batch
+### pkglink sync
 
-`pkglink-batch` lets you define multiple resources and CLI packages inside a
+`pkglink sync` lets you define multiple resources and CLI packages inside a
 `pkglink.config.yaml` file and execute them in three deterministic phases:
 download, plan, and execute. The batch process downloads every package up front
 (failing fast if any fetch errors occur), generates execution plans for each
@@ -66,11 +65,11 @@ to disk.
 Once published, you can use both tools directly with `uvx` without installation:
 
 ```bash
-# Use pkglink for resource linking
-uvx pkglink --from tbelt toolbelt resources
+# Use pkglink link for resource linking
+uvx pkglink link --from tbelt toolbelt resources
 
-# Use pkglinkx for GitHub repo CLI access
-uvx pkglinkx github:org/awesome-cli-tool
+# Use pkglink tool for GitHub repo CLI access
+uvx pkglink tool github:org/awesome-cli-tool
 
 # Then run the CLI tool
 uvx --from .pkglink/awesome-cli-tool some-command
@@ -86,28 +85,28 @@ pip install pkglink
 
 ## Usage
 
-### pkglink - Resource Linking
+### pkglink link - Resource Linking
 
 #### Basic Examples
 
 ```bash
 # Symlink the 'resources' directory from 'mypackage'
-pkglink mypackage resources
+pkglink link mypackage resources
 
 # Use --from to install one package but link from another module
-pkglink --from tbelt toolbelt resources
+pkglink link --from tbelt toolbelt resources
 
 # Specify a custom symlink name
-pkglink --symlink-name .configs mypackage configs
+pkglink link --symlink-name .configs mypackage configs
 
-# Create symlinks inside .pkglink directory (unified with pkglinkx)
-pkglink --inside-pkglink --from tbelt toolbelt resources
+# Create symlinks inside .pkglink directory (unified with pkglink tool)
+pkglink link --inside-pkglink --from tbelt toolbelt resources
 
 # Dry run to see what would happen
-pkglink --dry-run mypackage templates
+pkglink link --dry-run mypackage templates
 
 # Force overwrite existing symlinks
-pkglink --force mypackage resources
+pkglink link --force mypackage resources
 ```
 
 #### Command Line Options
@@ -124,25 +123,25 @@ pkglink --force mypackage resources
 - `--verbose`: Enable verbose logging
 - `--no-setup`: Skip running post-install setup (pkglink.yaml)
 
-### pkglinkx - GitHub CLI Tools
+### pkglink tool - GitHub CLI Tools
 
 #### Basic Examples
 
 ```bash
 # Make a GitHub repo uvx-compatible (basic usage)
-pkglinkx github:org/awesome-cli-tool
+pkglink tool github:org/awesome-cli-tool
 
 # Then run CLI commands
 uvx --from .pkglink/awesome-cli-tool some-command
 
 # With specific version
-pkglinkx github:org/tool@v1.2.0
+pkglink tool github:org/tool@v1.2.0
 
 # Skip resource linking (CLI tools only)
-pkglinkx --skip-resources github:org/pure-cli-tool
+pkglink tool --skip-resources github:org/pure-cli-tool
 
 # Custom resource directory and symlink name
-pkglinkx -d configs -s .my-configs github:org/config-tool
+pkglink tool -d configs -s .my-configs github:org/config-tool
 ```
 
 #### Command Line Options
@@ -155,7 +154,7 @@ pkglinkx -d configs -s .my-configs github:org/config-tool
 
 #### Generated Structure
 
-`pkglinkx` creates a structured `.pkglink` directory:
+`pkglink tool` creates a structured `.pkglink` directory:
 
 ```
 .pkglink/
@@ -171,12 +170,12 @@ pkglinkx -d configs -s .my-configs github:org/config-tool
 operation and exit successfully (unless `--force` is used). This makes it safe
 to run in setup scripts multiple times.
 
-### pkglink-batch - YAML Automation
+### pkglink sync - YAML Automation
 
-`pkglink-batch` reads link definitions from `pkglink.config.yaml` and executes
-each one in three stages. Each link uses the same flags available on `pkglink`
-or `pkglinkx`, so you can mix resource links and `.pkglink` uvx setups in one
-run.
+`pkglink sync` reads link definitions from `pkglink.config.yaml` and executes
+each one in three stages. Each link uses the same flags available on
+`pkglink link` or `pkglink tool`, so you can mix resource links and `.pkglink`
+uvx setups in one run.
 
 #### Example `pkglink.config.yaml`
 
@@ -200,13 +199,13 @@ links:
 ```
 
 > **Warning:** Each link must resolve to a unique `project_name` and
-> `symlink_name`. If two entries collide, `pkglink-batch` will exit before
+> `symlink_name`. If two entries collide, `pkglink sync` will exit before
 > downloading anything and list the duplicates so you can fix them safely.
 
 Run the batch:
 
 ```bash
-pkglink-batch  # reads pkglink.config.yaml in the current directory
+pkglink sync  # reads pkglink.config.yaml in the current directory
 ```
 
 The CLI will:
@@ -215,9 +214,9 @@ The CLI will:
 2. Generate execution plans using the cached downloads
 3. Apply each plan and run `pkglink.yaml` post-install setup where applicable
 
-Use `pkglink-batch --dry-run` to preview all plans without touching the
+Use `pkglink sync --dry-run` to preview all plans without touching the
 filesystem. You can override the configuration path with
-`pkglink-batch --config path/to/pkglink.config.yaml`.
+`pkglink sync --config path/to/pkglink.config.yaml`.
 
 ## ⚠️ Important Notes & Gotchas
 
@@ -232,11 +231,11 @@ Python module naming conventions.
 # Python module: my_awesome_package
 
 # This works automatically:
-pkglink github:org/my-awesome-package resources
+pkglink link github:org/my-awesome-package resources
 # pkglink automatically looks for module 'my_awesome_package'
 
 # If the auto-conversion doesn't match, use --from:
-pkglink --from github:org/repo-with-hyphens actual_module_name
+pkglink link --from github:org/repo-with-hyphens actual_module_name
 ```
 
 **Why this matters:**
@@ -258,13 +257,13 @@ pkglink --from github:org/repo-with-hyphens actual_module_name
 pkglink user/repo configs
 
 # Specific versions
-pkglink mypackage==1.2.0 resources
+pkglink link mypackage==1.2.0 resources
 
 # With custom names and force overwrite
-pkglink --symlink-name .my-configs --force mypackage configs
+pkglink link --symlink-name .my-configs --force mypackage configs
 
 # Skip post-install setup
-pkglink --no-setup mypackage resources
+pkglink link --no-setup mypackage resources
 ```
 
 ## Post-Install Setup
@@ -302,7 +301,7 @@ codeguide/
         └── pyproject.toml
 ```
 
-Running `pkglink codeguide` will:
+Running `pkglink link codeguide` will:
 
 1. Create `.codeguide/` symlink to the resources directory
 2. Read `.codeguide/pkglink.yaml`
@@ -359,42 +358,42 @@ installation:
 
 ```bash
 # Share configuration templates across projects
-pkglink --symlink-name .eslintrc my-configs eslint
-pkglink --symlink-name .github my-configs github-workflows
+pkglink link --symlink-name .eslintrc my-configs eslint
+pkglink link --symlink-name .github my-configs github-workflows
 
-# Unified organization with pkglinkx
-pkglink --inside-pkglink --from tbelt toolbelt resources
+# Unified organization with pkglink tool
+pkglink link --inside-pkglink --from tbelt toolbelt resources
 ```
 
 ### Resource Access (pkglink)
 
 ```bash
 # Access package resources for development
-pkglink --from data-science-toolkit datasets data
-pkglink ml-models pretrained
+pkglink link --from data-science-toolkit datasets data
+pkglink link ml-models pretrained
 ```
 
 ### Template Management (pkglink)
 
 ```bash
 # Quick access to project templates
-pkglink project-templates react
-pkglink --symlink-name .templates cookiecutter-templates django
+pkglink link project-templates react
+pkglink link --symlink-name .templates cookiecutter-templates django
 ```
 
-### CLI Tool Access (pkglinkx)
+### CLI Tool Access (pkglink tool)
 
 ```bash
 # Make any GitHub Python project usable as a CLI tool
-pkglinkx github:microsoft/pylint-extensions
+pkglink tool github:microsoft/pylint-extensions
 uvx --from .pkglink/pylint-extensions pylint --load-plugins=...
 
 # Development tools
-pkglinkx github:psf/black
+pkglink tool github:psf/black
 uvx --from .pkglink/black black --version
 
 # Custom CLI tools
-pkglinkx github:myorg/internal-tool
+pkglink tool github:myorg/internal-tool
 uvx --from .pkglink/internal-tool tool-command --help
 ```
 
@@ -404,12 +403,12 @@ Both tools can work together for complete project setup:
 
 ```bash
 # Set up CLI tools
-pkglinkx github:org/awesome-linter
-pkglinkx --skip-resources github:org/code-formatter
+pkglink tool github:org/awesome-linter
+pkglink tool --skip-resources github:org/code-formatter
 
 # Set up shared resources  
-pkglink --inside-pkglink --from tbelt toolbelt resources
-pkglink --inside-pkglink my-configs eslint
+pkglink link --inside-pkglink --from tbelt toolbelt resources
+pkglink link --inside-pkglink my-configs eslint
 
 # Now everything is organized under .pkglink/
 ls .pkglink/
@@ -422,18 +421,19 @@ uvx --from .pkglink/code-formatter format-code
 
 ## Benefits
 
-### pkglink
+### pkglink link
 
 - **Fast**: Leverages `uvx` caching + additional persistent caching
 - **Reliable**: Uses `uv`'s robust package installation with multiple fallback
   strategies
 - **Flexible**: Supports PyPI packages, GitHub repos, and local paths
 - **Safe**: Dry-run mode and intelligent conflict detection
-- **Organized**: Optional `--inside-pkglink` for unified structure with pkglinkx
+- **Organized**: Optional `--inside-pkglink` for unified structure with pkglink
+  tool
 - **Convenient**: Can be used with `uvx` without installation
 - **Authenticated**: Inherits all `uv` authentication for private repositories
 
-### pkglinkx
+### pkglink tool
 
 - **Universal**: Makes any GitHub Python project uvx-compatible
 - **Automatic**: Generates proper `pyproject.toml` from package metadata
