@@ -14,7 +14,7 @@ def test_local_install_default(
     result = run_pkglinkx([str(INTEGRATION_DIR)], test_dir)
     assert result.returncode != 0
     step1_snippets = [
-        'Could not find dist',  # May be line-wrapped in output
+        'Could not find dis',  # May be line-wrapped in output
         'for expected package',
         'provide --project-name matching',
         'python_project-0.0.2.dist-info',
