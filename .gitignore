@@ -13,3 +13,4 @@ htmlcov/
 book/
 .pytest_cache/*
 .pkglink
+/.editorconfig
