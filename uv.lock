@@ -111,16 +111,16 @@ toml = [
 
 [[package]]
 name = "hotlog"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4c/72/20781593bf2e709e6eca44a1482962ac145ee546eb625e9996c05bc73405/hotlog-0.1.0.tar.gz", hash = "sha256:40c577cb3e3935a8e374ea28e88e5973ce454ed75b1ed109803fa29a5fadecc3", size = 13499, upload-time = "2025-10-03T23:53:20.353Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/35/c183e87e977d70ee07afb19bcf0cf7f55f3eedac9ea45c410668203ef357/hotlog-0.1.1.tar.gz", hash = "sha256:9ffaf1edcc0c95ef1be51990dda08d4c271621bbe71a2ff742eb542c315e681d", size = 13692, upload-time = "2025-10-06T13:31:19.195Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/c0/381456535b7c72adca0b81a9c067f811e6c916c812b3bd25f7f5cb56bc0c/hotlog-0.1.0-py3-none-any.whl", hash = "sha256:8eb815a5a902cb837607391542d4be9bcb419681b008348d5b7e67cd4618ed4d", size = 17832, upload-time = "2025-10-03T23:53:19.551Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/66/300925d1ef20596f28eb30fa97e01395c703c944f5a8ba5d9ec00db06d2b/hotlog-0.1.1-py3-none-any.whl", hash = "sha256:b8d3e3c657d62d978039a39691d216059cc3737a8aecf16ba3d87f889299fdf6", size = 18011, upload-time = "2025-10-06T13:31:18.378Z" },
 ]
 
 [[package]]
@@ -196,7 +196,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "argcomplete", specifier = ">=3.6.2,<4" },
-    { name = "hotlog", specifier = ">=0.1.0" },
+    { name = "hotlog", specifier = ">=0.1.1" },
     { name = "pathspec", specifier = ">=0.12.0,<1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
