@@ -14,6 +14,7 @@ from pkglink.installation import install_with_uvx
 from pkglink.models import BaseCliArgs, ExecutionPlan, PkglinkContext
 from pkglink.parsing import create_pkglink_context
 from pkglink.setup import run_post_install_setup
+from pkglink.version import __version__
 
 logger = get_logger(__name__)
 
@@ -82,6 +83,11 @@ class WorkflowEntry:
 def setup_logging_and_handle_errors(*, verbose: int) -> None:
     """Configure logging with appropriate verbosity."""
     configure_logging(verbosity=verbose)
+    logger.info(
+        'pkglink_initialized',
+        _verbose_pkglink_version=__version__,
+        _display_level=1,
+    )
 
 
 def run_post_install_from_plan(plan: ExecutionPlan) -> list[dict[str, str]]:
