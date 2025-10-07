@@ -1,16 +1,21 @@
-"""Unified plk CLI wrapping link, tool, plan, and sync workflows."""
+"""Unified pkglink CLI wrapping link, tool, and sync workflows."""
 
 import argparse
 import sys
 
 from pkglink.cli.subparsers import register_all
+from pkglink.version import __version__
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level argument parser."""
     parser = argparse.ArgumentParser(
-        prog='plk',
         description='Unified pkglink CLI',
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='%(prog)s ' + __version__,
     )
     subparsers = parser.add_subparsers(dest='command', required=True)
     register_all(subparsers)
@@ -18,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Main entry point for the plk CLI."""
+    """Main entry point for the pkglink CLI."""
     parser = build_parser()
     namespace = parser.parse_args(argv)
 

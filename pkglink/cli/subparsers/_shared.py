@@ -1,4 +1,4 @@
-"""Shared helpers for plk subparsers."""
+"""Shared helpers for pkglink subparsers."""
 
 import argparse
 from collections.abc import Iterable

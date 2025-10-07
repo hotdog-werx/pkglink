@@ -47,6 +47,10 @@ def parse_metadata_file(file_path: Path) -> dict[str, str]:
 
     content = file_path.read_text()
     for line in content.split('\n'):
+        # Stop at first blank line (marks end of headers, start of body/README)
+        if not line.strip():
+            break
+        # Only parse header lines (key: value format, not indented)
         if ':' in line and not line.startswith(' '):
             key, value = line.split(':', 1)
             metadata[key.strip().lower().replace('-', '_')] = value.strip()

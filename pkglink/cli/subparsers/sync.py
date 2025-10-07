@@ -1,4 +1,4 @@
-"""plk sync subcommand."""
+"""pkglink sync subcommand."""
 
 import argparse
 from pathlib import Path
