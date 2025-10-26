@@ -252,6 +252,7 @@ def _create_cache_directory(spec: SourceSpec, install_spec: str) -> Path:
 
     # Use a hash of the install spec to create a unique cache directory
     spec_hash = hashlib.sha256(install_spec.encode()).hexdigest()[:8]
+    
     return cache_base / f'{spec.name}_{spec_hash}'
 
 
@@ -358,7 +359,6 @@ def _perform_uvx_installation(
             dist_info_path=str(dist_info_path),
         )
 
-        # Debug: List contents of site-packages before copying
         site_packages_items = list(site_packages.iterdir())
         logger.debug(
             'site_packages_contents',

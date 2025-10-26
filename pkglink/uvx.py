@@ -48,6 +48,12 @@ def _build_site_packages_command(
     cmd = ['uvx', '--verbose']
     if force_reinstall:
         cmd.append('--force-reinstall')
+    
+    # For local wheel installs, --force-reinstall should be sufficient
+    # --no-cache causes temp environment cleanup issues
+    # if install_spec.endswith('.whl'):
+    #     cmd.append('--no-cache')
+        
     cmd.extend(
         [
             '--from',
@@ -122,6 +128,7 @@ def _build_wheel_from_local_directory(local_path: Path) -> Path:
         RuntimeError: If building the wheel fails
     """
     import subprocess
+    import shutil
     
     try:
         logger.info(
@@ -130,6 +137,12 @@ def _build_wheel_from_local_directory(local_path: Path) -> Path:
             reason='uv_0.8_plus_local_install_fix',
             _display_level=1,
         )
+        
+        # Clean the dist directory first to ensure fresh build
+        dist_dir = local_path / 'dist'
+        if dist_dir.exists():
+            logger.debug('cleaning_dist_directory', path=str(dist_dir))
+            shutil.rmtree(dist_dir)
         
         # Build the wheel using uv build
         subprocess.run(
@@ -141,7 +154,6 @@ def _build_wheel_from_local_directory(local_path: Path) -> Path:
         )
         
         # Find the built wheel in the dist directory
-        dist_dir = local_path / 'dist'
         if not dist_dir.exists():
             raise RuntimeError(f'No dist directory found after building wheel at {local_path}')
             
@@ -198,6 +210,7 @@ def get_site_packages_path(
     # For UV 0.8+ compatibility: If this is a local directory, build a wheel first
     # This ensures all files (including non-Python resources) are properly included
     original_install_spec = install_spec
+    built_from_local = False
     local_path = Path(install_spec)
     logger.debug(
         'checking_local_wheel_build_conditions',
@@ -220,12 +233,21 @@ def get_site_packages_path(
         
         wheel_path = _build_wheel_from_local_directory(local_path)
         install_spec = str(wheel_path)
+        built_from_local = True
         
         logger.info(
             'using_wheel_instead_of_directory',
             original=original_install_spec,
             wheel=install_spec,
             _display_level=1,
+        )
+
+    # Force reinstall when we built from local directory to ensure fresh installation
+    if built_from_local:
+        force_reinstall = True
+        logger.debug(
+            'forcing_reinstall_for_local_wheel',
+            reason='ensure_fresh_installation_from_local_changes'
         )
 
     cmd = _build_site_packages_command(
