@@ -234,7 +234,30 @@ def _plan_resource_symlink(
                 context.cli_args.directory,
             )
         except Exception as exc:
-            # For pkglinkx, warn and skip; for pkglink, re-raise
+            # Check if this is a packaging issue vs missing resources
+            available_dirs = list(cache_dir.iterdir()) if cache_dir and cache_dir.exists() else []
+            available_names = [d.name for d in available_dirs if d.is_dir()]
+
+            # If only __pycache__ and dist-info exist, this is likely a packaging problem
+            is_packaging_issue = all(
+                name in ('__pycache__', 'site-packages') or name.endswith('.dist-info') for name in available_names
+            )
+
+            if is_packaging_issue:
+                # This is a packaging configuration problem, not missing resources
+                error_msg = (
+                    f"Package '{context.module_name}' appears to be incorrectly packaged. "
+                    f'No package files found in cache directory {cache_dir}. '
+                    f'This often happens when:\n'
+                    f'  1. Missing [tool.hatch.build.targets.wheel] include configuration\n'
+                    f"  2. Package structure doesn't match project name\n"
+                    f'  3. Build backend configuration is incomplete\n\n'
+                    f'Available directories: {available_names}\n'
+                    f"Expected: directory named '{context.module_name}' containing resources"
+                )
+                raise RuntimeError(error_msg) from exc
+
+            # For other cases, use the original logic
             if context.is_pkglinkx_cli:
                 logger.warning(
                     'no_package_subdir_found_skipping_resource_symlink',
