@@ -307,57 +307,6 @@ def _cache_dist_info(cache_dir: Path, dist_info_name: str | None) -> None:
         dist_info_cache_file.write_text(dist_info_name)
 
 
-def _build_local_package_wheel(local_path: Path) -> Path:
-    """Build a wheel from a local package directory.
-    
-    Args:
-        local_path: Path to the local package directory
-        
-    Returns:
-        Path to the built wheel file
-        
-    Raises:
-        RuntimeError: If building the wheel fails
-    """
-    import subprocess
-    
-    try:
-        logger.debug('building_wheel_from_local_package', path=str(local_path))
-        
-        # Build the wheel using uv build
-        subprocess.run(
-            ['uv', 'build', '--wheel', str(local_path)],
-            cwd=local_path,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        
-        # Find the built wheel in the dist directory
-        dist_dir = local_path / 'dist'
-        if not dist_dir.exists():
-            raise RuntimeError('No dist directory found after building wheel')
-            
-        wheel_files = list(dist_dir.glob('*.whl'))
-        if not wheel_files:
-            raise RuntimeError('No wheel files found in dist directory')
-            
-        # Return the most recent wheel (in case there are multiple)
-        wheel_path = max(wheel_files, key=lambda p: p.stat().st_mtime)
-        logger.debug('wheel_built_successfully', wheel_path=str(wheel_path))
-        return wheel_path
-        
-    except subprocess.CalledProcessError as e:
-        logger.error(
-            'wheel_build_failed',
-            path=str(local_path),
-            returncode=e.returncode,
-            stdout=e.stdout,
-            stderr=e.stderr
-        )
-        raise RuntimeError(f'Failed to build wheel from {local_path}: {e.stderr}') from e
-
-
 def _perform_uvx_installation(
     spec: SourceSpec,
     install_spec: str,
@@ -377,34 +326,6 @@ def _perform_uvx_installation(
         RuntimeError: If uvx installation fails
     """
     try:
-        # For local sources, build a wheel first to ensure proper file inclusion
-        logger.info(
-            'checking_local_source_for_wheel_build',
-            source_type=spec.source_type,
-            install_spec=install_spec,
-            _display_level=1,
-        )
-        if spec.source_type == 'local':
-            local_path = Path(install_spec).resolve()
-            logger.debug(
-                'local_path_analysis',
-                path=str(local_path),
-                is_dir=local_path.is_dir(),
-                has_pyproject=bool((local_path / 'pyproject.toml').exists())
-            )
-            if local_path.is_dir() and (local_path / 'pyproject.toml').exists():
-                logger.info(
-                    'building_wheel_for_local_package',
-                    package=spec.name,
-                    path=str(local_path),
-                    reason='uv_0.8_compatibility',
-                    _display_level=1,
-                )
-                wheel_path = _build_local_package_wheel(local_path)
-                # Use the wheel for installation instead of the directory
-                install_spec = str(wheel_path)
-                logger.debug('using_wheel_for_installation', wheel_path=install_spec)
-        
         # For mutable references (branches), force reinstall to get latest changes
         force_reinstall = not _is_immutable_reference(spec)
 

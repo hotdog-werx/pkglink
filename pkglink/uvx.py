@@ -109,6 +109,66 @@ def _extract_dist_info_path(
     raise RuntimeError(error_msg)
 
 
+def _build_wheel_from_local_directory(local_path: Path) -> Path:
+    """Build a wheel from a local package directory for UV 0.8+ compatibility.
+    
+    Args:
+        local_path: Path to the local package directory
+        
+    Returns:
+        Path to the built wheel file
+        
+    Raises:
+        RuntimeError: If building the wheel fails
+    """
+    import subprocess
+    
+    try:
+        logger.info(
+            'building_wheel_for_uv_compatibility',
+            path=str(local_path),
+            reason='uv_0.8_plus_local_install_fix',
+            _display_level=1,
+        )
+        
+        # Build the wheel using uv build
+        subprocess.run(
+            ['uv', 'build', '--wheel', str(local_path)],
+            cwd=local_path,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        # Find the built wheel in the dist directory
+        dist_dir = local_path / 'dist'
+        if not dist_dir.exists():
+            raise RuntimeError(f'No dist directory found after building wheel at {local_path}')
+            
+        wheel_files = list(dist_dir.glob('*.whl'))
+        if not wheel_files:
+            raise RuntimeError(f'No wheel files found in {dist_dir}')
+            
+        # Return the most recent wheel (in case there are multiple)
+        wheel_path = max(wheel_files, key=lambda p: p.stat().st_mtime)
+        logger.info(
+            'wheel_built_successfully',
+            wheel_path=str(wheel_path),
+            _display_level=1,
+        )
+        return wheel_path
+        
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            'wheel_build_failed',
+            path=str(local_path),
+            returncode=e.returncode,
+            stdout=e.stdout,
+            stderr=e.stderr
+        )
+        raise RuntimeError(f'Failed to build wheel from {local_path}: {e.stderr}') from e
+
+
 def get_site_packages_path(
     install_spec: str,
     *,
@@ -134,6 +194,39 @@ def get_site_packages_path(
         force_reinstall=force_reinstall,
         expected_package=expected_package,
     )
+
+    # For UV 0.8+ compatibility: If this is a local directory, build a wheel first
+    # This ensures all files (including non-Python resources) are properly included
+    original_install_spec = install_spec
+    local_path = Path(install_spec)
+    logger.debug(
+        'checking_local_wheel_build_conditions',
+        install_spec=install_spec,
+        path=str(local_path),
+        is_absolute=local_path.is_absolute(),
+        is_dir=local_path.is_dir(),
+        has_pyproject=(local_path / 'pyproject.toml').exists() if local_path.exists() else False,
+    )
+    if (local_path.is_absolute() and 
+        local_path.is_dir() and 
+        (local_path / 'pyproject.toml').exists()):
+        
+        logger.info(
+            'detected_local_directory_install',
+            path=str(local_path),
+            action='building_wheel_for_compatibility',
+            _display_level=1,
+        )
+        
+        wheel_path = _build_wheel_from_local_directory(local_path)
+        install_spec = str(wheel_path)
+        
+        logger.info(
+            'using_wheel_instead_of_directory',
+            original=original_install_spec,
+            wheel=install_spec,
+            _display_level=1,
+        )
 
     cmd = _build_site_packages_command(
         install_spec,
