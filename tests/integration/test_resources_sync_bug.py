@@ -13,7 +13,8 @@ def test_resources_sync_bug_is_packaging_issue(
     tmp_path: Path,
     run_pkglink_batch: CliCommand,
 ):
-    """Test that demonstrates the root cause of the "resource sync bug":
+    """Test that demonstrates the root cause of the "resource sync bug".
+
     It's actually a packaging configuration issue, not a sync problem.
 
     When packages are missing proper hatchling configuration, they fail to
@@ -31,7 +32,7 @@ def test_resources_sync_bug_is_packaging_issue(
     # Create pyproject.toml WITHOUT proper hatchling configuration
     # This is what causes the "sync bug" - it's really a packaging issue
     pyproject_content = f"""[project]
-name = "{package_name}"  
+name = "{package_name}"
 version = "1.0.0"
 description = "Package with broken hatchling config"
 
@@ -84,6 +85,7 @@ def test_resources_sync_works_with_proper_config(
     run_pkglink_batch: CliCommand,
 ):
     """Test that resource sync works correctly when packaging is properly configured.
+
     This demonstrates the solution to the "sync bug" - proper hatchling configuration.
     """
     package_name = 'workingpackage'
@@ -139,10 +141,3 @@ include = [
     # The key point is that sync completed without errors (returncode == 0)
     # Different packaging structures may result in different sync layouts,
     # but the important thing is that proper config prevents the "sync bug"
-
-    print(
-        '✓ Resource sync completed successfully with proper hatchling configuration',
-    )
-    print(
-        "✓ This demonstrates the solution to the 'sync bug' - correct packaging setup",
-    )

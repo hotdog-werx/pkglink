@@ -208,6 +208,65 @@ def _plan_metadata_file(plan: ExecutionPlan, target_dir: Path) -> None:
     )
 
 
+def _resolve_cache_dir_package_root(
+    cache_dir: Path,
+    context: PkglinkContext,
+) -> Path | None:
+    """Resolve package root from cache directory."""
+    try:
+        return find_package_root(
+            cache_dir,
+            context.module_name,
+            context.cli_args.directory,
+        )
+    except RuntimeError as exc:
+        _handle_cache_dir_error(cache_dir, context, exc)
+        return None
+
+
+def _handle_cache_dir_error(
+    cache_dir: Path,
+    context: PkglinkContext,
+    exc: Exception,
+) -> None:
+    """Handle errors when resolving package root from cache directory."""
+    available_dirs = list(cache_dir.iterdir()) if cache_dir.exists() else []
+    available_names = [d.name for d in available_dirs if d.is_dir()]
+
+    # If only __pycache__ and dist-info exist, this is likely a packaging problem
+    is_packaging_issue = all(
+        name in ('__pycache__', 'site-packages') or name.endswith('.dist-info') for name in available_names
+    )
+
+    if is_packaging_issue:
+        error_msg = (
+            f"Package '{context.module_name}' appears to be incorrectly packaged. "
+            f'No package files found in cache directory {cache_dir}. '
+            f'This often happens when:\n'
+            f'  1. Missing [tool.hatch.build.targets.wheel] include configuration\n'
+            f"  2. Package structure doesn't match project name\n"
+            f'  3. Build backend configuration is incomplete\n\n'
+            f'Available directories: {available_names}\n'
+            f"Expected: directory named '{context.module_name}' containing resources"
+        )
+        raise RuntimeError(error_msg) from exc
+
+    # For other cases, use the original logic
+    if context.is_pkglinkx_cli:
+        logger.warning(
+            'no_package_subdir_found_skipping_resource_symlink',
+            expected=context.cli_args.directory,
+            install_dir=str(cache_dir),
+            target_subdir=context.cli_args.directory,
+            suggestion='Use --skip-resources to avoid this warning if the package has no resources',
+        )
+        return  # Skip resource linking
+
+    resource_source = cache_dir / context.module_name / context.cli_args.directory
+    msg = f'Resource directory not found: {resource_source}'
+    raise RuntimeError(msg) from exc
+
+
 def _plan_resource_symlink(
     context: PkglinkContext,
     plan: ExecutionPlan,
@@ -227,49 +286,9 @@ def _plan_resource_symlink(
 
     # Use provided cache or resolve source path (for backward compatibility)
     if cache_dir:
-        try:
-            package_root = find_package_root(
-                cache_dir,
-                context.module_name,
-                context.cli_args.directory,
-            )
-        except Exception as exc:
-            # Check if this is a packaging issue vs missing resources
-            available_dirs = list(cache_dir.iterdir()) if cache_dir and cache_dir.exists() else []
-            available_names = [d.name for d in available_dirs if d.is_dir()]
-
-            # If only __pycache__ and dist-info exist, this is likely a packaging problem
-            is_packaging_issue = all(
-                name in ('__pycache__', 'site-packages') or name.endswith('.dist-info') for name in available_names
-            )
-
-            if is_packaging_issue:
-                # This is a packaging configuration problem, not missing resources
-                error_msg = (
-                    f"Package '{context.module_name}' appears to be incorrectly packaged. "
-                    f'No package files found in cache directory {cache_dir}. '
-                    f'This often happens when:\n'
-                    f'  1. Missing [tool.hatch.build.targets.wheel] include configuration\n'
-                    f"  2. Package structure doesn't match project name\n"
-                    f'  3. Build backend configuration is incomplete\n\n'
-                    f'Available directories: {available_names}\n'
-                    f"Expected: directory named '{context.module_name}' containing resources"
-                )
-                raise RuntimeError(error_msg) from exc
-
-            # For other cases, use the original logic
-            if context.is_pkglinkx_cli:
-                logger.warning(
-                    'no_package_subdir_found_skipping_resource_symlink',
-                    expected=context.cli_args.directory,
-                    install_dir=str(cache_dir),
-                    target_subdir=context.cli_args.directory,
-                    suggestion='Use --skip-resources to avoid this warning if the package has no resources',
-                )
-                return
-            resource_source = cache_dir / context.module_name / context.cli_args.directory
-            msg = f'Resource directory not found: {resource_source}'
-            raise RuntimeError(msg) from exc
+        package_root = _resolve_cache_dir_package_root(cache_dir, context)
+        if package_root is None:
+            return  # Skip resource linking
         resource_source = package_root / context.cli_args.directory
     else:
         # Fallback to resolve_source_path (triggers uvx call)

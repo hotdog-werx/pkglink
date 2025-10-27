@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from hotlog import get_logger
 
@@ -116,137 +117,186 @@ def _extract_dist_info_path(
     raise RuntimeError(error_msg)
 
 
+def _get_cache_busting_version(build_root: Path, timestamp: str) -> str:
+    """Get the cache-busting version for a project."""
+    pyproject_path = build_root / 'pyproject.toml'
+    base_version = '0.0.0'
+
+    if not pyproject_path.exists():
+        return f'{base_version}.post{timestamp}'
+
+    pyproject_text = pyproject_path.read_text()
+    dynamic_match = re.search(
+        r'dynamic\s*=\s*\[(?P<values>[^\]]*)\]',
+        pyproject_text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    dynamic_version = bool(
+        dynamic_match and 'version' in dynamic_match.group('values'),
+    )
+
+    if dynamic_version:
+        return _get_dynamic_version_cache_bust(
+            pyproject_text,
+            build_root,
+            timestamp,
+            base_version,
+        )
+    return _get_static_version_cache_bust(
+        pyproject_text,
+        pyproject_path,
+        timestamp,
+        base_version,
+    )
+
+
+def _get_dynamic_version_cache_bust(
+    pyproject_text: str,
+    build_root: Path,
+    timestamp: str,
+    base_version: str,
+) -> str:
+    """Handle cache-busting for dynamic version projects."""
+    version_path_match = re.search(
+        r'version\.path\s*=\s*["\']([^"\']+)["\']',
+        pyproject_text,
+    )
+    if not version_path_match:
+        logger.debug('dynamic_version_path_missing', path='(unspecified)')
+        return f'{base_version}.post{timestamp}'
+
+    version_file = build_root / version_path_match.group(1)
+    if not version_file.exists():
+        logger.debug('dynamic_version_path_missing', path=str(version_file))
+        return f'{base_version}.post{timestamp}'
+
+    version_text = version_file.read_text()
+    version_value = re.search(
+        r'__version__\s*=\s*["\']([^"\']+)["\']',
+        version_text,
+    )
+
+    cache_busting_version = f'{base_version}.post{timestamp}'
+    if version_value:
+        base_version = version_value.group(1)
+        cache_busting_version = f'{base_version}.post{timestamp}'
+        updated_version_text = re.sub(
+            r'(__version__\s*=\s*["\'])([^"\']+)(["\'])',
+            lambda m: f'{m.group(1)}{cache_busting_version}{m.group(3)}',
+            version_text,
+            count=1,
+        )
+    else:
+        updated_version_text = f'{version_text.rstrip()}\n__version__ = "{cache_busting_version}"\n'
+
+    version_file.write_text(updated_version_text)
+    return cache_busting_version
+
+
+def _get_static_version_cache_bust(
+    pyproject_text: str,
+    pyproject_path: Path,
+    timestamp: str,
+    base_version: str,
+) -> str:
+    """Handle cache-busting for static version projects."""
+    version_pattern = re.compile(
+        r'^(version\s*=\s*["\'])([^"\']+)(["\'])',
+        re.MULTILINE,
+    )
+    match = version_pattern.search(pyproject_text)
+
+    if match:
+        base_version = match.group(2)
+        cache_busting_version = f'{base_version}.post{timestamp}'
+        updated_pyproject = version_pattern.sub(
+            lambda m: f'{m.group(1)}{cache_busting_version}{m.group(3)}',
+            pyproject_text,
+            count=1,
+        )
+        pyproject_path.write_text(updated_pyproject)
+        return cache_busting_version
+
+    if '[project]' in pyproject_text:
+        cache_busting_version = f'{base_version}.post{timestamp}'
+        pyproject_path.write_text(
+            pyproject_text.replace(
+                '[project]',
+                f'[project]\nversion = "{cache_busting_version}"',
+                1,
+            ),
+        )
+        return cache_busting_version
+
+    return f'{base_version}.post{timestamp}'
+
+
+def _prepare_build_directory(local_path: Path) -> tuple[Path, Path]:
+    """Prepare the build directory and return build_root and dist_dir."""
+    dist_dir = local_path / 'dist'
+    if dist_dir.exists():
+        logger.debug('cleaning_dist_directory', path=str(dist_dir))
+        shutil.rmtree(dist_dir)
+    dist_dir.mkdir(parents=True, exist_ok=True)
+
+    temp_dir = Path(tempfile.mkdtemp())
+    build_root = temp_dir / local_path.name
+    shutil.copytree(local_path, build_root, symlinks=True)
+
+    return build_root, dist_dir
+
+
+def _build_wheel(build_root: Path) -> Path:
+    """Build the wheel and return the path to the built wheel."""
+    uv_path = shutil.which('uv')
+    if uv_path is None:
+        msg = 'uv command not found in PATH'
+        raise RuntimeError(msg)
+
+    subprocess.run(  # noqa: S603 - using which() to find uv executable
+        [uv_path, 'build', '--wheel', str(build_root)],
+        cwd=build_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    temp_dist_dir = build_root / 'dist'
+    if not temp_dist_dir.exists():
+        msg = f'No dist directory found after building wheel at {build_root}'
+        raise RuntimeError(msg)
+
+    wheel_candidates = list(temp_dist_dir.glob('*.whl'))
+    if not wheel_candidates:
+        msg = f'No wheel files found in {temp_dist_dir}'
+        raise RuntimeError(msg)
+
+    return max(wheel_candidates, key=lambda path: path.stat().st_mtime)
+
+
 def _build_wheel_from_local_directory(local_path: Path) -> Path:
     """Build a wheel from a local package directory for UV 0.8+ compatibility."""
-    timestamp = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    timestamp = datetime.datetime.now(tz=ZoneInfo('UTC')).strftime(
+        '%Y%m%d%H%M%S',
+    )
 
+    logger.info(
+        'building_wheel_for_uv_compatibility',
+        path=str(local_path),
+        reason='uv_0.8_plus_local_install_fix',
+        _display_level=1,
+    )
+
+    build_root, dist_dir = _prepare_build_directory(local_path)
     try:
-        logger.info(
-            'building_wheel_for_uv_compatibility',
-            path=str(local_path),
-            reason='uv_0.8_plus_local_install_fix',
-            _display_level=1,
+        cache_busting_version = _get_cache_busting_version(
+            build_root,
+            timestamp,
         )
+        latest_wheel = _build_wheel(build_root)
 
-        dist_dir = local_path / 'dist'
-        if dist_dir.exists():
-            logger.debug('cleaning_dist_directory', path=str(dist_dir))
-            shutil.rmtree(dist_dir)
-        dist_dir.mkdir(parents=True, exist_ok=True)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            build_root = Path(temp_dir) / local_path.name
-            shutil.copytree(local_path, build_root, symlinks=True)
-
-            pyproject_path = build_root / 'pyproject.toml'
-            base_version = '0.0.0'
-            cache_busting_version = None
-
-            if pyproject_path.exists():
-                pyproject_text = pyproject_path.read_text()
-                dynamic_match = re.search(
-                    r'dynamic\s*=\s*\[(?P<values>[^\]]*)\]',
-                    pyproject_text,
-                    flags=re.MULTILINE | re.DOTALL,
-                )
-                dynamic_version = bool(
-                    dynamic_match and 'version' in dynamic_match.group('values'),
-                )
-
-                if dynamic_version:
-                    # Hatch dynamic version projects update __version__ in the referenced module.
-                    version_path_match = re.search(
-                        r'version\.path\s*=\s*["\']([^"\']+)["\']',
-                        pyproject_text,
-                    )
-                    if version_path_match:
-                        version_file = build_root / version_path_match.group(1)
-                        if version_file.exists():
-                            version_text = version_file.read_text()
-                            version_value = re.search(
-                                r'__version__\s*=\s*["\']([^"\']+)["\']',
-                                version_text,
-                            )
-                            if version_value:
-                                base_version = version_value.group(1)
-                            cache_busting_version = f'{base_version}.post{timestamp}'
-                            if version_value:
-                                updated_version_text = re.sub(
-                                    r'(__version__\s*=\s*["\'])([^"\']+)(["\'])',
-                                    lambda m: f"{m.group(1)}{cache_busting_version}{m.group(3)}",
-                                    version_text,
-                                    count=1,
-                                )
-                            else:
-                                updated_version_text = (
-                                    f'{version_text.rstrip()}\n__version__ = "{cache_busting_version}"\n'
-                                )
-                            version_file.write_text(updated_version_text)
-                        else:
-                            logger.debug(
-                                'dynamic_version_path_missing',
-                                path=str(version_file),
-                            )
-                    else:
-                        logger.debug('dynamic_version_path_missing', path='(unspecified)')
-                else:
-                    version_pattern = re.compile(
-                        r'^(version\s*=\s*["\'])([^"\']+)(["\'])',
-                        re.MULTILINE,
-                    )
-                    match = version_pattern.search(pyproject_text)
-
-                    if match:
-                        base_version = match.group(2)
-                        cache_busting_version = f'{base_version}.post{timestamp}'
-                        updated_pyproject = version_pattern.sub(
-                            lambda m: f"{m.group(1)}{cache_busting_version}{m.group(3)}",
-                            pyproject_text,
-                            count=1,
-                        )
-                        pyproject_path.write_text(updated_pyproject)
-                    elif '[project]' in pyproject_text:
-                        cache_busting_version = f'{base_version}.post{timestamp}'
-                        pyproject_path.write_text(
-                            pyproject_text.replace(
-                                '[project]',
-                                f'[project]\nversion = "{cache_busting_version}"',
-                                1,
-                            ),
-                        )
-
-            if cache_busting_version is None:
-                cache_busting_version = f'{base_version}.post{timestamp}'
-                logger.debug(
-                    'cache_busting_version_fallback',
-                    path=str(pyproject_path),
-                    version=cache_busting_version,
-                )
-
-            subprocess.run(  # noqa: S603 - executing trusted build backend
-                ['uv', 'build', '--wheel', str(build_root)],
-                cwd=build_root,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            temp_dist_dir = build_root / 'dist'
-            if not temp_dist_dir.exists():
-                raise RuntimeError(
-                    f'No dist directory found after building wheel at {build_root}',
-                )
-
-            wheel_candidates = list(temp_dist_dir.glob('*.whl'))
-            if not wheel_candidates:
-                raise RuntimeError(f'No wheel files found in {temp_dist_dir}')
-
-            latest_wheel = max(
-                wheel_candidates,
-                key=lambda path: path.stat().st_mtime,
-            )
-            final_wheel_path = dist_dir / latest_wheel.name
-            shutil.copy2(latest_wheel, final_wheel_path)
+        final_wheel_path = dist_dir / latest_wheel.name
+        shutil.copy2(latest_wheel, final_wheel_path)
 
         logger.info(
             'wheel_built_successfully',
@@ -254,19 +304,21 @@ def _build_wheel_from_local_directory(local_path: Path) -> Path:
             version=cache_busting_version,
             _display_level=1,
         )
-        return final_wheel_path
-
     except subprocess.CalledProcessError as exc:
-        logger.error(
+        logger.exception(
             'wheel_build_failed',
             path=str(local_path),
             returncode=exc.returncode,
             stdout=exc.stdout,
             stderr=exc.stderr,
         )
-        raise RuntimeError(
-            f'Failed to build wheel from {local_path}: {exc.stderr}',
-        ) from exc
+        msg = f'Failed to build wheel from {local_path}: {exc.stderr}'
+        raise RuntimeError(msg) from exc
+    else:
+        return final_wheel_path
+    finally:
+        # Clean up temporary directory
+        shutil.rmtree(build_root.parent, ignore_errors=True)
 
 
 def get_site_packages_path(
