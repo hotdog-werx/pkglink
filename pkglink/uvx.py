@@ -1,8 +1,11 @@
 """Module for interacting with uvx (uv's tool runner)."""
 
+import datetime
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from hotlog import get_logger
@@ -48,12 +51,10 @@ def _build_site_packages_command(
     cmd = ['uvx', '--verbose']
     if force_reinstall:
         cmd.append('--force-reinstall')
-    
-    # For local wheel installs, --force-reinstall should be sufficient
-    # --no-cache causes temp environment cleanup issues
-    # if install_spec.endswith('.whl'):
-    #     cmd.append('--no-cache')
-        
+
+    # For local wheel installs, --force-reinstall should be sufficient.
+    # Using --no-cache here would leave behind temporary environments, so we avoid it.
+
     cmd.extend(
         [
             '--from',
@@ -116,20 +117,9 @@ def _extract_dist_info_path(
 
 
 def _build_wheel_from_local_directory(local_path: Path) -> Path:
-    """Build a wheel from a local package directory for UV 0.8+ compatibility.
-    
-    Args:
-        local_path: Path to the local package directory
-        
-    Returns:
-        Path to the built wheel file
-        
-    Raises:
-        RuntimeError: If building the wheel fails
-    """
-    import subprocess
-    import shutil
-    
+    """Build a wheel from a local package directory for UV 0.8+ compatibility."""
+    timestamp = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
+
     try:
         logger.info(
             'building_wheel_for_uv_compatibility',
@@ -137,48 +127,101 @@ def _build_wheel_from_local_directory(local_path: Path) -> Path:
             reason='uv_0.8_plus_local_install_fix',
             _display_level=1,
         )
-        
-        # Clean the dist directory first to ensure fresh build
+
         dist_dir = local_path / 'dist'
         if dist_dir.exists():
             logger.debug('cleaning_dist_directory', path=str(dist_dir))
             shutil.rmtree(dist_dir)
-        
-        # Build the wheel using uv build
-        subprocess.run(
-            ['uv', 'build', '--wheel', str(local_path)],
-            cwd=local_path,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        
-        # Find the built wheel in the dist directory
-        if not dist_dir.exists():
-            raise RuntimeError(f'No dist directory found after building wheel at {local_path}')
-            
-        wheel_files = list(dist_dir.glob('*.whl'))
-        if not wheel_files:
-            raise RuntimeError(f'No wheel files found in {dist_dir}')
-            
-        # Return the most recent wheel (in case there are multiple)
-        wheel_path = max(wheel_files, key=lambda p: p.stat().st_mtime)
+        dist_dir.mkdir(parents=True, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            build_root = Path(temp_dir) / local_path.name
+            shutil.copytree(local_path, build_root, symlinks=True)
+
+            pyproject_path = build_root / 'pyproject.toml'
+            base_version = '0.0.0'
+            cache_busting_version = None
+
+            if pyproject_path.exists():
+                pyproject_text = pyproject_path.read_text()
+                version_pattern = re.compile(
+                    r'^(version\s*=\s*["\"])([^"\
+]+)(["\"])',
+                    re.MULTILINE,
+                )
+                match = version_pattern.search(pyproject_text)
+
+                if match:
+                    base_version = match.group(2)
+                    cache_busting_version = f'{base_version}.post{timestamp}'
+                    pyproject_text = version_pattern.sub(
+                        lambda m: f'{m.group(1)}{cache_busting_version}{m.group(3)}',
+                        pyproject_text,
+                        count=1,
+                    )
+                    pyproject_path.write_text(pyproject_text)
+                elif '[project]' in pyproject_text:
+                    cache_busting_version = f'{base_version}.post{timestamp}'
+                    pyproject_path.write_text(
+                        pyproject_text.replace(
+                            '[project]',
+                            f'[project]\nversion = "{cache_busting_version}"',
+                            1,
+                        ),
+                    )
+
+            if cache_busting_version is None:
+                cache_busting_version = f'{base_version}.post{timestamp}'
+                logger.debug(
+                    'cache_busting_version_fallback',
+                    path=str(pyproject_path),
+                    version=cache_busting_version,
+                )
+
+            subprocess.run(  # noqa: S603 - executing trusted build backend
+                ['uv', 'build', '--wheel', str(build_root)],
+                cwd=build_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            temp_dist_dir = build_root / 'dist'
+            if not temp_dist_dir.exists():
+                raise RuntimeError(
+                    f'No dist directory found after building wheel at {build_root}',
+                )
+
+            wheel_candidates = list(temp_dist_dir.glob('*.whl'))
+            if not wheel_candidates:
+                raise RuntimeError(f'No wheel files found in {temp_dist_dir}')
+
+            latest_wheel = max(
+                wheel_candidates,
+                key=lambda path: path.stat().st_mtime,
+            )
+            final_wheel_path = dist_dir / latest_wheel.name
+            shutil.copy2(latest_wheel, final_wheel_path)
+
         logger.info(
             'wheel_built_successfully',
-            wheel_path=str(wheel_path),
+            wheel_path=str(final_wheel_path),
+            version=cache_busting_version,
             _display_level=1,
         )
-        return wheel_path
-        
-    except subprocess.CalledProcessError as e:
+        return final_wheel_path
+
+    except subprocess.CalledProcessError as exc:
         logger.error(
             'wheel_build_failed',
             path=str(local_path),
-            returncode=e.returncode,
-            stdout=e.stdout,
-            stderr=e.stderr
+            returncode=exc.returncode,
+            stdout=exc.stdout,
+            stderr=exc.stderr,
         )
-        raise RuntimeError(f'Failed to build wheel from {local_path}: {e.stderr}') from e
+        raise RuntimeError(
+            f'Failed to build wheel from {local_path}: {exc.stderr}',
+        ) from exc
 
 
 def get_site_packages_path(
@@ -220,21 +263,18 @@ def get_site_packages_path(
         is_dir=local_path.is_dir(),
         has_pyproject=(local_path / 'pyproject.toml').exists() if local_path.exists() else False,
     )
-    if (local_path.is_absolute() and 
-        local_path.is_dir() and 
-        (local_path / 'pyproject.toml').exists()):
-        
+    if local_path.is_absolute() and local_path.is_dir() and (local_path / 'pyproject.toml').exists():
         logger.info(
             'detected_local_directory_install',
             path=str(local_path),
             action='building_wheel_for_compatibility',
             _display_level=1,
         )
-        
+
         wheel_path = _build_wheel_from_local_directory(local_path)
         install_spec = str(wheel_path)
         built_from_local = True
-        
+
         logger.info(
             'using_wheel_instead_of_directory',
             original=original_install_spec,
@@ -247,7 +287,7 @@ def get_site_packages_path(
         force_reinstall = True
         logger.debug(
             'forcing_reinstall_for_local_wheel',
-            reason='ensure_fresh_installation_from_local_changes'
+            reason='ensure_fresh_installation_from_local_changes',
         )
 
     cmd = _build_site_packages_command(

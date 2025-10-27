@@ -252,7 +252,7 @@ def _create_cache_directory(spec: SourceSpec, install_spec: str) -> Path:
 
     # Use a hash of the install spec to create a unique cache directory
     spec_hash = hashlib.sha256(install_spec.encode()).hexdigest()[:8]
-    
+
     return cache_base / f'{spec.name}_{spec_hash}'
 
 
