@@ -17,7 +17,7 @@ def test_local_install_default(
         'Could not find dis',  # May be line-wrapped in output
         'for expected package',
         'provide --project-name matching',
-        'python_project-0.0.2.dist-info',
+        'python_project-0.0.2.post',  # Cache-busted version
     ]
     assert_contains_all(result.all_output, step1_snippets, 'default install')
 

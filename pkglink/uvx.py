@@ -144,31 +144,76 @@ def _build_wheel_from_local_directory(local_path: Path) -> Path:
 
             if pyproject_path.exists():
                 pyproject_text = pyproject_path.read_text()
-                version_pattern = re.compile(
-                    r'^(version\s*=\s*["\"])([^"\
-]+)(["\"])',
-                    re.MULTILINE,
+                dynamic_match = re.search(
+                    r'dynamic\s*=\s*\[(?P<values>[^\]]*)\]',
+                    pyproject_text,
+                    flags=re.MULTILINE | re.DOTALL,
                 )
-                match = version_pattern.search(pyproject_text)
+                dynamic_version = bool(
+                    dynamic_match and 'version' in dynamic_match.group('values'),
+                )
 
-                if match:
-                    base_version = match.group(2)
-                    cache_busting_version = f'{base_version}.post{timestamp}'
-                    pyproject_text = version_pattern.sub(
-                        lambda m: f'{m.group(1)}{cache_busting_version}{m.group(3)}',
+                if dynamic_version:
+                    # Hatch dynamic version projects update __version__ in the referenced module.
+                    version_path_match = re.search(
+                        r'version\.path\s*=\s*["\']([^"\']+)["\']',
                         pyproject_text,
-                        count=1,
                     )
-                    pyproject_path.write_text(pyproject_text)
-                elif '[project]' in pyproject_text:
-                    cache_busting_version = f'{base_version}.post{timestamp}'
-                    pyproject_path.write_text(
-                        pyproject_text.replace(
-                            '[project]',
-                            f'[project]\nversion = "{cache_busting_version}"',
-                            1,
-                        ),
+                    if version_path_match:
+                        version_file = build_root / version_path_match.group(1)
+                        if version_file.exists():
+                            version_text = version_file.read_text()
+                            version_value = re.search(
+                                r'__version__\s*=\s*["\']([^"\']+)["\']',
+                                version_text,
+                            )
+                            if version_value:
+                                base_version = version_value.group(1)
+                            cache_busting_version = f'{base_version}.post{timestamp}'
+                            if version_value:
+                                updated_version_text = re.sub(
+                                    r'(__version__\s*=\s*["\'])([^"\']+)(["\'])',
+                                    lambda m: f"{m.group(1)}{cache_busting_version}{m.group(3)}",
+                                    version_text,
+                                    count=1,
+                                )
+                            else:
+                                updated_version_text = (
+                                    f'{version_text.rstrip()}\n__version__ = "{cache_busting_version}"\n'
+                                )
+                            version_file.write_text(updated_version_text)
+                        else:
+                            logger.debug(
+                                'dynamic_version_path_missing',
+                                path=str(version_file),
+                            )
+                    else:
+                        logger.debug('dynamic_version_path_missing', path='(unspecified)')
+                else:
+                    version_pattern = re.compile(
+                        r'^(version\s*=\s*["\'])([^"\']+)(["\'])',
+                        re.MULTILINE,
                     )
+                    match = version_pattern.search(pyproject_text)
+
+                    if match:
+                        base_version = match.group(2)
+                        cache_busting_version = f'{base_version}.post{timestamp}'
+                        updated_pyproject = version_pattern.sub(
+                            lambda m: f"{m.group(1)}{cache_busting_version}{m.group(3)}",
+                            pyproject_text,
+                            count=1,
+                        )
+                        pyproject_path.write_text(updated_pyproject)
+                    elif '[project]' in pyproject_text:
+                        cache_busting_version = f'{base_version}.post{timestamp}'
+                        pyproject_path.write_text(
+                            pyproject_text.replace(
+                                '[project]',
+                                f'[project]\nversion = "{cache_busting_version}"',
+                                1,
+                            ),
+                        )
 
             if cache_busting_version is None:
                 cache_busting_version = f'{base_version}.post{timestamp}'
