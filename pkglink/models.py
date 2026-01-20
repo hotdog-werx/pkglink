@@ -129,7 +129,7 @@ class LocalSourceSpec(BaseSourceSpec):
     """Local path source specification."""
 
     source_type: Literal['local'] = 'local'
-    local_path: str | None = None  # Stores the original path
+    local_path: str
 
     def canonical_spec(self) -> str:
         """Return a canonical representation of the source specification."""

@@ -7,7 +7,7 @@ COVERAGE_RCFILE = "configs/.coveragerc"
 TB_PROJECT_SOURCE = "pkglink"
 
 [tools]
-uv = "0.7.20"
+uv = "0.9.26"
 dprint = "0.50.1"
 starship = "1.23.0"
 "pipx:poethepoet" = "0.40.0"

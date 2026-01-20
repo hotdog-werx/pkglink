@@ -37,6 +37,9 @@ version.path = 'pkglink/version.py'
 [tool]
 pyright.extends = ".codeguide/configs/pyrightconfig.json"
 
+[tool.ruff]
+extend = ".codeguide/configs/ruff.toml"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

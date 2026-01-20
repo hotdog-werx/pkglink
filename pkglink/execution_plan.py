@@ -12,6 +12,7 @@ from pkglink.installation import (
 from pkglink.models import (
     ExecutionPlan,
     FileOperation,
+    LocalSourceSpec,
     PackageInfo,
     PkglinkContext,
 )
@@ -208,56 +209,100 @@ def _plan_metadata_file(plan: ExecutionPlan, target_dir: Path) -> None:
     )
 
 
+# Prefer cached package roots for non-local sources to avoid extra uvx calls.
+def _resolve_cached_resource_source(
+    context: PkglinkContext,
+    cache_dir: Path,
+) -> Path | None:
+    try:
+        package_root = find_package_root(
+            cache_dir,
+            context.module_name,
+            context.cli_args.directory,
+        )
+    except Exception as exc:
+        if context.is_pkglinkx_cli:
+            logger.warning(
+                'no_package_subdir_found_skipping_resource_symlink',
+                expected=context.cli_args.directory,
+                install_dir=str(cache_dir),
+                target_subdir=context.cli_args.directory,
+                suggestion='Use --skip-resources to avoid this warning if the package has no resources',
+            )
+            return None
+        resource_source = cache_dir / context.module_name / context.cli_args.directory
+        msg = f'Resource directory not found: {resource_source}'
+        raise RuntimeError(msg) from exc
+    return package_root / context.cli_args.directory
+
+
+# Local sources should point at the source tree so edits are visible immediately.
+def _resolve_local_resource_source(
+    context: PkglinkContext,
+    spec: LocalSourceSpec,
+) -> Path | None:
+    local_path_value = spec.local_path or spec.name
+    local_path = Path(local_path_value).expanduser().resolve()
+    direct_resource = local_path / context.cli_args.directory
+    if direct_resource.exists():
+        return direct_resource
+
+    try:
+        package_root = find_package_root(
+            local_path,
+            context.module_name,
+            context.cli_args.directory,
+        )
+    except Exception as exc:
+        if context.is_pkglinkx_cli:
+            logger.warning(
+                'no_package_subdir_found_skipping_resource_symlink',
+                expected=context.cli_args.directory,
+                install_dir=str(local_path),
+                target_subdir=context.cli_args.directory,
+                suggestion='Use --skip-resources to avoid this warning if the package has no resources',
+            )
+            return None
+        msg = f'Resource directory not found: {local_path / context.cli_args.directory}'
+        raise RuntimeError(msg) from exc
+    return package_root / context.cli_args.directory
+
+
+# Resolve a resource directory based on the source type and available cache.
+def _resolve_resource_source(
+    context: PkglinkContext,
+    cache_dir: Path | None,
+) -> Path | None:
+    spec = context.install_spec
+    if isinstance(spec, LocalSourceSpec):
+        return _resolve_local_resource_source(context, spec)
+
+    if cache_dir:
+        return _resolve_cached_resource_source(context, cache_dir)
+
+    source_path = resolve_source_path(
+        spec,
+        context.module_name,
+    )
+    return source_path / context.cli_args.directory
+
+
 def _plan_resource_symlink(
     context: PkglinkContext,
     plan: ExecutionPlan,
     base_dir: Path,
     cache_dir: Path | None = None,
 ) -> None:
-    """Plan resource symlink creation if not skipped.
-
-    Args:
-        context: The pkglink context
-        plan: Execution plan to add operations to
-        base_dir: Base directory for operations
-        cache_dir: Optional cache directory to use (avoids redundant uvx calls)
-    """
+    """Plan resource symlink creation if not skipped."""
     if context.skip_resources:
         return
 
-    # Use provided cache or resolve source path (for backward compatibility)
-    if cache_dir:
-        try:
-            package_root = find_package_root(
-                cache_dir,
-                context.module_name,
-                context.cli_args.directory,
-            )
-        except Exception as exc:
-            # For pkglinkx, warn and skip; for pkglink, re-raise
-            if context.is_pkglinkx_cli:
-                logger.warning(
-                    'no_package_subdir_found_skipping_resource_symlink',
-                    expected=context.cli_args.directory,
-                    install_dir=str(cache_dir),
-                    target_subdir=context.cli_args.directory,
-                    suggestion='Use --skip-resources to avoid this warning if the package has no resources',
-                )
-                return
-            resource_source = cache_dir / context.module_name / context.cli_args.directory
-            msg = f'Resource directory not found: {resource_source}'
-            raise RuntimeError(msg) from exc
-        resource_source = package_root / context.cli_args.directory
-    else:
-        # Fallback to resolve_source_path (triggers uvx call)
-        source_path = resolve_source_path(
-            context.install_spec,
-            context.module_name,
-        )
-        resource_source = source_path / context.cli_args.directory
+    # Dispatch resource resolution by spec type; local sources bypass uvx cache.
+    resource_source = _resolve_resource_source(context, cache_dir)
+    if resource_source is None:
+        return
 
     if resource_source.exists():
-        # Plan resource symlink
         target_path = base_dir / context.resolved_symlink_name
         plan.add_operation(
             'create_symlink',
@@ -265,14 +310,17 @@ def _plan_resource_symlink(
             target_path=target_path,
             description=f'Symlink {context.cli_args.directory}/ directory as {context.resolved_symlink_name}',
         )
-    elif context.is_pkglinkx_cli:
+        return
+
+    if context.is_pkglinkx_cli:
         logger.warning(
             'resource_directory_not_found_skipping_in_plan',
             resource_source=str(resource_source),
         )
-    else:
-        msg = f'Resource directory not found: {resource_source}'
-        raise RuntimeError(msg)
+        return
+
+    msg = f'Resource directory not found: {resource_source}'
+    raise RuntimeError(msg)
 
 
 def generate_execution_plan(
