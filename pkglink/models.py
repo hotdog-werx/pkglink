@@ -32,7 +32,6 @@ class ParsedSource(BaseModel):
 class BaseSourceSpec(BaseModel, ABC):
     """Abstract base for parsed source specifications."""
 
-    source_type: str
     name: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
     version: str | None = None
     project_name: Annotated[
