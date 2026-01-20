@@ -9,12 +9,11 @@ from pytest_mock import MockerFixture
 
 from pkglink import installation
 from pkglink.installation import (
-    _is_immutable_reference,
     _should_refresh_cache,
     find_package_root,
     install_with_uvx,
 )
-from pkglink.models import SourceSpec
+from pkglink.models import GitHubSourceSpec, PackageSourceSpec
 from pkglink.parsing import build_uv_install_spec
 
 
@@ -23,76 +22,69 @@ class TestMutableReferenceLogic:
 
     def test_is_immutable_reference_package_with_version(self) -> None:
         """Test that packages with specific versions are immutable."""
-        spec = SourceSpec(
-            source_type='package',
+        spec = PackageSourceSpec(
             name='requests',
             version='2.28.0',
             project_name='requests',
         )
-        assert _is_immutable_reference(spec)  # Covers line 20
+        assert spec.is_immutable_reference()  # Covers line 20
 
     def test_is_immutable_reference_package_without_version(self) -> None:
         """Test that packages without versions are mutable."""
-        spec = SourceSpec(
-            source_type='package',
+        spec = PackageSourceSpec(
             name='requests',
             project_name='requests',
         )
-        assert not _is_immutable_reference(spec)
+        assert not spec.is_immutable_reference()
 
     def test_is_immutable_reference_github_commit_hash(self) -> None:
         """Test that GitHub commit hashes are immutable."""
-        spec = SourceSpec(
-            source_type='github',
+        spec = GitHubSourceSpec(
             name='repo',
             org='org',
             version='a' * 40,  # 40-char hex commit hash
             project_name='repo',
         )
-        assert _is_immutable_reference(spec)  # Covers line 28
+        assert spec.is_immutable_reference()  # Covers line 28
 
     def test_is_immutable_reference_github_version_tag(self) -> None:
         """Test that GitHub version tags are immutable."""
         test_cases = ['v1.2.3', '1.2.3', 'v10.20.30']
         for version in test_cases:
-            spec = SourceSpec(
-                source_type='github',
+            spec = GitHubSourceSpec(
                 name='repo',
                 org='org',
                 version=version,
                 project_name='repo',
             )
-            assert _is_immutable_reference(spec), f'Version {version} should be immutable'  # Covers line 37
+            assert spec.is_immutable_reference(), f'Version {version} should be immutable'  # Covers line 37
 
     def test_is_immutable_reference_github_branch(self) -> None:
         """Test that GitHub branches are mutable."""
         test_cases = ['main', 'develop', 'feature-branch']
         for branch in test_cases:
-            spec = SourceSpec(
-                source_type='github',
+            spec = GitHubSourceSpec(
                 name='repo',
                 org='org',
                 version=branch,
                 project_name='repo',
             )
-            assert not _is_immutable_reference(spec), f'Branch {branch} should be mutable'
+            assert not spec.is_immutable_reference(), f'Branch {branch} should be mutable'
 
     def test_is_immutable_reference_github_without_version(self) -> None:
         """Test that GitHub without version (default branch) is mutable."""
-        spec = SourceSpec(
-            source_type='github',
+        spec = GitHubSourceSpec(
             name='repo',
             org='org',
             project_name='repo',
         )
-        assert not _is_immutable_reference(spec)
+        assert not spec.is_immutable_reference()
 
     def test_should_refresh_cache_nonexistent_cache(self) -> None:
         """Test cache refresh when cache doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
             nonexistent_cache = Path(temp_dir) / 'nonexistent'
-            spec = SourceSpec(
-                source_type='package',
+            spec = PackageSourceSpec(
                 name='test',
                 project_name='test',
             )
@@ -106,8 +98,7 @@ class TestMutableReferenceLogic:
             cache_dir.mkdir()
 
             # Immutable reference should not refresh cache
-            spec = SourceSpec(
-                source_type='package',
+            spec = PackageSourceSpec(
                 name='requests',
                 version='2.28.0',
                 project_name='requests',
@@ -121,8 +112,7 @@ class TestMutableReferenceLogic:
             cache_dir.mkdir()
 
             # Mutable reference should refresh cache
-            spec = SourceSpec(
-                source_type='github',
+            spec = GitHubSourceSpec(
                 name='repo',
                 org='org',
                 version='main',
@@ -167,8 +157,7 @@ class TestInstallWithUvx:
         with tempfile.TemporaryDirectory() as temp_home:
             temp_home_path = Path(temp_home)
             mocker.patch('pathlib.Path.home', return_value=temp_home_path)
-            spec = SourceSpec(
-                source_type='github',
+            spec = GitHubSourceSpec(
                 name='repo',
                 org='org',
                 version='a' * 40,
@@ -198,8 +187,7 @@ class TestInstallWithUvx:
             )
             mock_get_site_packages.side_effect = RuntimeError('uvx failed')
             mocker.patch.object(Path, 'exists', return_value=False)
-            spec = SourceSpec(
-                source_type='github',
+            spec = GitHubSourceSpec(
                 name='repo',
                 org='org',
                 project_name='repo',

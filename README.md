@@ -146,7 +146,7 @@ pkglink tool -d configs -s .my-configs github:org/config-tool
 
 #### Command Line Options
 
-- `source`: GitHub repository specification (github:org/repo[@version])
+- `source`: GitHub repository specification (github:[server/]org/repo[@version])
 - `-d, --directory`: Target subdirectory to link (default: "resources")
 - `-s, --symlink-name`: Name for the resource symlink (default: `.{repo-name}`)
 - `--skip-resources`: Skip creating resource symlinks
@@ -221,6 +221,9 @@ filesystem. You can override the configuration path with
 ## ⚠️ Important Notes & Gotchas
 
 ### GitHub Repository Naming
+
+`pkglink` defaults to `github.com` for GitHub sources. For GitHub Enterprise,
+use `github:your.ghe.host/org/repo` to target your server.
 
 When using GitHub repositories, `pkglink` automatically converts repository
 names from **kebab-case** (hyphens) to **snake_case** (underscores) to match

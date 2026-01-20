@@ -383,13 +383,7 @@ def _generate_metadata_content(plan: ExecutionPlan) -> dict:
     Returns:
         Dictionary with metadata content
     """
-    spec_str = f'{plan.context.install_spec.source_type}:{plan.context.install_spec.name}'
-    if plan.context.install_spec.org:
-        spec_str = (
-            f'{plan.context.install_spec.source_type}:{plan.context.install_spec.org}/{plan.context.install_spec.name}'
-        )
-    if plan.context.install_spec.version:
-        spec_str += f'@{plan.context.install_spec.version}'
+    spec_str = plan.context.install_spec.canonical_spec()
     source_hash = hashlib.md5(spec_str.encode()).hexdigest()[:8]  # noqa: S324
 
     return {
