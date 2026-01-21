@@ -1,7 +1,9 @@
+import os
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -24,7 +26,6 @@ class ParsedSource(BaseModel):
     org: str | None = None
     repo: str | None = None
     version: str | None = None
-    server_url: str | None = None
     # For local sources
     local_path: str | None = None
 
@@ -56,22 +57,24 @@ class BaseSourceSpec(BaseModel, ABC):
         return self.name
 
 
+def _resolve_github_server_host() -> str:
+    raw = os.environ.get('GITHUB_SERVER_URL', '').strip()
+    if not raw:
+        return 'github.com'
+    parsed = urlparse(raw)
+    host = parsed.netloc or parsed.path
+    return host.rstrip('/') or 'github.com'
+
+
 class GitHubSourceSpec(BaseSourceSpec):
     """GitHub source specification."""
 
     source_type: Literal['github'] = 'github'
     org: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-    server_url: Annotated[
-        str,
-        StringConstraints(min_length=1, strip_whitespace=True),
-    ] = 'github.com'
 
     def canonical_spec(self) -> str:
         """Return a canonical representation of the source specification."""
-        if self.server_url == 'github.com':
-            base = f'github:{self.org}/{self.name}'
-        else:
-            base = f'github:{self.server_url}/{self.org}/{self.name}'
+        base = f'github:{self.org}/{self.name}'
 
         if self.version:
             base = f'{base}@{self.version}'
@@ -92,15 +95,13 @@ class GitHubSourceSpec(BaseSourceSpec):
 
     def uv_install_spec(self) -> str:
         """Return the uv-compatible install spec for this GitHub repo."""
-        base_url = self.server_url.rstrip('/')
+        base_url = _resolve_github_server_host()
         base = f'git+https://{base_url}/{self.org}/{self.name}.git'
         return f'{base}@{self.version}' if self.version else base
 
     def display_name(self) -> str:
         """Return a human-friendly display name for logging."""
-        if self.server_url == 'github.com':
-            return f'{self.org}/{self.name}'
-        return f'{self.server_url}/{self.org}/{self.name}'
+        return f'{self.org}/{self.name}'
 
 
 class PackageSourceSpec(BaseSourceSpec):

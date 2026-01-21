@@ -17,7 +17,6 @@ class ParseTestCase:
     expected_name: str
     expected_org: str | None = None
     expected_version: str | None = None
-    expected_server_url: str | None = None
 
 
 @dataclass
@@ -39,7 +38,6 @@ class TestParseSource:
                 expected_type='github',
                 expected_name='myrepo',
                 expected_org='myorg',
-                expected_server_url=None,
             ),
             ParseTestCase(
                 source='github:myorg/myrepo@v1.0.0',
@@ -47,15 +45,6 @@ class TestParseSource:
                 expected_name='myrepo',
                 expected_org='myorg',
                 expected_version='v1.0.0',
-                expected_server_url=None,
-            ),
-            ParseTestCase(
-                source='github:github.company.com/myorg/myrepo@v1.0.0',
-                expected_type='github',
-                expected_name='myrepo',
-                expected_org='myorg',
-                expected_version='v1.0.0',
-                expected_server_url='github.company.com',
             ),
             ParseTestCase(
                 source='./local/path',
@@ -98,4 +87,3 @@ class TestParseSource:
         assert result.name == case.expected_name
         assert result.org == case.expected_org
         assert result.version == case.expected_version
-        assert result.server_url == case.expected_server_url

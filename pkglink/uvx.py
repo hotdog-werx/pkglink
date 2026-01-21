@@ -17,7 +17,7 @@ def _run_uvx_subprocess(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     """
     logger.debug('running_uvx_command', command=' '.join(cmd))
     env = None
-    github_token = os.environ.get('GITHUB_TOKEN')
+    github_token = os.environ.get('PKGLINK_GITHUB_TOKEN')
     if github_token:
         env = os.environ.copy()
         env['GITHUB_TOKEN'] = github_token

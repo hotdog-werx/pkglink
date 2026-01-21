@@ -23,15 +23,11 @@ def parse_source(
     """Convert a ParsedSource object into a SourceSpec, always setting project_name."""
     # Ensure required fields are present and fallback to empty string if needed
     if source.source_type == 'github':
-        kwargs = {}
-        if source.server_url:
-            kwargs['server_url'] = source.server_url
         return GitHubSourceSpec(
             name=source.repo or '',
             org=source.org or '',
             version=source.version,
             project_name=project_name or source.repo or '',
-            **kwargs,
         )
     if source.source_type == 'local':
         return LocalSourceSpec(
@@ -89,24 +85,19 @@ def parse_github_source(value: str) -> tuple[ParsedSource | None, str]:
 
     Args:
         value: Source string in the format github:org/repo[@version]
-            or github:server/org/repo[@version]
 
     Returns:
         A tuple of (ParsedSource or None, error message string).
     """
-    m = re.match(
-        r'^github:(?:(?P<server>[^/]+)/)?(?P<org>[^/]+)/(?P<repo>[^@/]+)(?:@(?P<version>.+))?$',
-        value,
-    )
+    m = re.match(r'^github:([^/]+)/([^@/]+)(?:@(.+))?$', value)
     if not m:
         return None, f'Invalid Github source format: {value}'
-    server, org, repo, version = m.group('server', 'org', 'repo', 'version')
+    org, repo, version = m.groups()
     if not org.strip() or not repo.strip():
         return None, f'Invalid Github source format: {value}'
     return ParsedSource(
         source_type='github',
         raw=value,
-        server_url=server,
         org=org,
         repo=repo,
         version=version,
