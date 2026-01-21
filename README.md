@@ -224,9 +224,8 @@ filesystem. You can override the configuration path with
 
 `pkglink` defaults to `github.com` for GitHub sources. For GitHub Enterprise,
 set `GITHUB_SERVER_URL` to your server URL (for example,
-`https://github.company.com`).
-If you need to authenticate, set `PKGLINK_GITHUB_TOKEN`; pkglink will pass it
-to uv/uvx as `GITHUB_TOKEN`.
+`https://github.company.com`). If you need to authenticate, set
+`PKGLINK_GITHUB_TOKEN`; pkglink will pass it to uv/uvx as `GITHUB_TOKEN`.
 
 When using GitHub repositories, `pkglink` automatically converts repository
 names from **kebab-case** (hyphens) to **snake_case** (underscores) to match
