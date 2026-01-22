@@ -42,7 +42,10 @@ def argparse_source(value: str) -> ParsedSource:
             name=name,
         )
     # Accept as package
-    package_match = re.match(r'^([^@]+)(?:@(.+))?$', value)
+    package_match = re.match(
+        r'^([A-Za-z0-9_.-]+)(?:(?:@|===|==|!=|~=|<=|>=|<|>)(.+))?$',
+        value,
+    )
     if not package_match:
         msg = f'Invalid pypi package source format: {value}'
         raise argparse.ArgumentTypeError(msg)

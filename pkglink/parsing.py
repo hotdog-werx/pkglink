@@ -135,10 +135,6 @@ def create_pkglink_context(args: BaseCliArgs) -> PkglinkContext:
     # Normalize module name for lookup (github/local: hyphens -> underscores)
     module_name = lookup_name.replace('-', '_') if normalize else lookup_name
 
-    # NOTE: Attempting hacky fix for now... revisit
-    if isinstance(install_spec, PackageSourceSpec) and install_spec.version:
-        module_name = module_name.removesuffix(install_spec.version)
-
     logger.debug(
         'parsed_source_spec',
         name=install_spec.name,
