@@ -135,10 +135,10 @@ def _plan_uvx_symlink(
     cache_dir: Path,
     src_dir: Path,
 ) -> Path:
-    package_source = cache_dir / context.module_name
+    package_source = cache_dir / context.name
     if not package_source.exists():
         found = None
-        for subdir in cache_dir.rglob(context.module_name):
+        for subdir in cache_dir.rglob(context.name):
             if subdir.is_dir():
                 found = subdir
                 logger.debug(
@@ -154,12 +154,12 @@ def _plan_uvx_symlink(
                 attempted=str(package_source),
                 cache_dir=str(cache_dir),
             )
-    package_symlink = src_dir / context.module_name
+    package_symlink = src_dir / context.name
     plan.add_operation(
         'create_symlink',
         source_path=package_source,
         target_path=package_symlink,
-        description=f'Symlink Python module {context.module_name}',
+        description=f'Symlink Python module {context.name}',
     )
     return package_source
 
