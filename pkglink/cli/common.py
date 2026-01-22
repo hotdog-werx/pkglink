@@ -131,6 +131,7 @@ def download_phase(entries: list[WorkflowEntry]) -> None:
 
             cache_dir, dist_info_name, _ = install_with_uvx(
                 context.install_spec,
+                index_url=context.index_url,
             )
             entry.cache_dir = cache_dir
             entry.dist_info_name = dist_info_name

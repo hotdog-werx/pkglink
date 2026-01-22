@@ -33,9 +33,9 @@ def _plan_base_directory(context: PkglinkContext, plan: ExecutionPlan) -> Path:
         Path to the base directory for operations
     """
     if context.inside_pkglink:
-        base_dir = Path.cwd() / '.pkglink'
+        base_dir = Path.cwd() / ".pkglink"
         plan.add_operation(
-            'create_directory',
+            "create_directory",
             target_path=base_dir,
             description="Create .pkglink directory if it doesn't exist",
         )
@@ -84,15 +84,15 @@ def _plan_uvx_directories(
 ) -> tuple[Path, Path]:
     target_dir = base_dir / context.install_spec.project_name
     plan.add_operation(
-        'create_directory',
+        "create_directory",
         target_path=target_dir,
-        description=f'Create target directory for {context.get_display_name()}',
+        description=f"Create target directory for {context.get_display_name()}",
     )
-    src_dir = target_dir / 'src'
+    src_dir = target_dir / "src"
     plan.add_operation(
-        'create_directory',
+        "create_directory",
         target_path=src_dir,
-        description='Create src/ directory for uvx compatibility',
+        description="Create src/ directory for uvx compatibility",
     )
     return target_dir, src_dir
 
@@ -104,10 +104,13 @@ def _plan_uvx_cache(
     dist_info_name: str | None,
 ) -> tuple[Path, str]:
     if cache_dir and dist_info_name:
-        logger.debug('using_pre_installed_cache', cache_dir=str(cache_dir))
+        logger.debug("using_pre_installed_cache", cache_dir=str(cache_dir))
         plan.uvx_cache_dir = cache_dir
     else:
-        cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
+        cache_dir, dist_info_name, _ = install_with_uvx(
+            context.install_spec,
+            index_url=context.index_url,
+        )
         plan.uvx_cache_dir = cache_dir
     return cache_dir, dist_info_name
 
@@ -138,7 +141,7 @@ def _plan_uvx_symlink(
             if subdir.is_dir():
                 found = subdir
                 logger.debug(
-                    'using_exact_package_dir_from_recursive_search',
+                    "using_exact_package_dir_from_recursive_search",
                     found=str(found),
                 )
                 break
@@ -146,16 +149,16 @@ def _plan_uvx_symlink(
             package_source = found
         else:
             logger.error(
-                'package_source_not_found',
+                "package_source_not_found",
                 attempted=str(package_source),
                 cache_dir=str(cache_dir),
             )
     package_symlink = src_dir / context.module_name
     plan.add_operation(
-        'create_symlink',
+        "create_symlink",
         source_path=package_source,
         target_path=package_symlink,
-        description=f'Symlink Python module {context.module_name}',
+        description=f"Symlink Python module {context.module_name}",
     )
     return package_source
 
@@ -174,7 +177,7 @@ def _plan_pyproject_file(
         target_dir: Target directory for the file
         package_info: Package information for generating content
     """
-    project_name = package_info.metadata.get('name', context.module_name)
+    project_name = package_info.metadata.get("name", context.module_name)
     pyproject_content = generate_pyproject_toml(
         package_name=project_name,
         python_module_name=context.module_name,
@@ -182,14 +185,16 @@ def _plan_pyproject_file(
     )
 
     # Get first few lines for preview
-    content_lines = pyproject_content.split('\n')[:10]
-    content_preview = '\n'.join(content_lines) + ('...' if len(content_lines) > 10 else '')
+    content_lines = pyproject_content.split("\n")[:10]
+    content_preview = "\n".join(content_lines) + (
+        "..." if len(content_lines) > 10 else ""
+    )
 
     plan.add_operation(
-        'create_file',
-        target_path=target_dir / 'pyproject.toml',
+        "create_file",
+        target_path=target_dir / "pyproject.toml",
         content_preview=content_preview,
-        description=f'Generate pyproject.toml with {len(package_info.dependencies or [])} dependencies',
+        description=f"Generate pyproject.toml with {len(package_info.dependencies or [])} dependencies",
     )
 
 
@@ -201,10 +206,10 @@ def _plan_metadata_file(plan: ExecutionPlan, target_dir: Path) -> None:
         target_dir: Target directory for the file
     """
     plan.add_operation(
-        'create_file',
-        target_path=target_dir / '.pkglink-metadata.yaml',
-        content_preview='version: ...\nsource_hash: ...\ninstall_spec: ...',
-        description='Create metadata file for tracking',
+        "create_file",
+        target_path=target_dir / ".pkglink-metadata.yaml",
+        content_preview="version: ...\nsource_hash: ...\ninstall_spec: ...",
+        description="Create metadata file for tracking",
     )
 
 
@@ -237,15 +242,17 @@ def _plan_resource_symlink(
             # For pkglinkx, warn and skip; for pkglink, re-raise
             if context.is_pkglinkx_cli:
                 logger.warning(
-                    'no_package_subdir_found_skipping_resource_symlink',
+                    "no_package_subdir_found_skipping_resource_symlink",
                     expected=context.cli_args.directory,
                     install_dir=str(cache_dir),
                     target_subdir=context.cli_args.directory,
-                    suggestion='Use --skip-resources to avoid this warning if the package has no resources',
+                    suggestion="Use --skip-resources to avoid this warning if the package has no resources",
                 )
                 return
-            resource_source = cache_dir / context.module_name / context.cli_args.directory
-            msg = f'Resource directory not found: {resource_source}'
+            resource_source = (
+                cache_dir / context.module_name / context.cli_args.directory
+            )
+            msg = f"Resource directory not found: {resource_source}"
             raise RuntimeError(msg) from exc
         resource_source = package_root / context.cli_args.directory
     else:
@@ -260,18 +267,18 @@ def _plan_resource_symlink(
         # Plan resource symlink
         target_path = base_dir / context.resolved_symlink_name
         plan.add_operation(
-            'create_symlink',
+            "create_symlink",
             source_path=resource_source,
             target_path=target_path,
-            description=f'Symlink {context.cli_args.directory}/ directory as {context.resolved_symlink_name}',
+            description=f"Symlink {context.cli_args.directory}/ directory as {context.resolved_symlink_name}",
         )
     elif context.is_pkglinkx_cli:
         logger.warning(
-            'resource_directory_not_found_skipping_in_plan',
+            "resource_directory_not_found_skipping_in_plan",
             resource_source=str(resource_source),
         )
     else:
-        msg = f'Resource directory not found: {resource_source}'
+        msg = f"Resource directory not found: {resource_source}"
         raise RuntimeError(msg)
 
 
@@ -296,7 +303,7 @@ def generate_execution_plan(
     plan = ExecutionPlan(context=context)
 
     logger.debug(
-        'generating_execution_plan',
+        "generating_execution_plan",
         context_summary=context.get_concise_summary(),
     )
 
@@ -308,12 +315,16 @@ def generate_execution_plan(
 
     # Plan resource symlink creation - pass cache_dir to avoid redundant uvx calls
     effective_cache_dir = cache_dir
-    if not effective_cache_dir and hasattr(plan, 'uvx_cache_dir') and plan.uvx_cache_dir:
+    if (
+        not effective_cache_dir
+        and hasattr(plan, "uvx_cache_dir")
+        and plan.uvx_cache_dir
+    ):
         effective_cache_dir = plan.uvx_cache_dir
     _plan_resource_symlink(context, plan, base_dir, effective_cache_dir)
 
     logger.info(
-        'execution_plan_generated',
+        "execution_plan_generated",
         _display_level=1,
         **plan.get_summary(),
     )
@@ -328,7 +339,7 @@ def _execute_create_directory(operation: FileOperation) -> None:
     """
     operation.target_path.mkdir(parents=True, exist_ok=True)
     logger.debug(
-        'created_directory',
+        "created_directory",
         path=str(operation.target_path),
     )
 
@@ -336,7 +347,7 @@ def _execute_create_directory(operation: FileOperation) -> None:
 def _execute_create_symlink(operation: FileOperation) -> None:
     """Execute a create_symlink operation using robust symlink logic."""
     if operation.source_path is None:
-        msg = f'Source path required for symlink operation: {operation}'
+        msg = f"Source path required for symlink operation: {operation}"
         raise ValueError(msg)
 
     # Use robust symlink creation logic
@@ -360,11 +371,11 @@ def _generate_pyproject_content(plan: ExecutionPlan) -> str:
         ValueError: If package info is missing
     """
     if plan.package_info is None:
-        msg = 'Package info required for pyproject.toml generation'
+        msg = "Package info required for pyproject.toml generation"
         raise ValueError(msg)
 
     project_name = plan.package_info.metadata.get(
-        'name',
+        "name",
         plan.context.module_name,
     )
     return generate_pyproject_toml(
@@ -387,13 +398,17 @@ def _generate_metadata_content(plan: ExecutionPlan) -> dict:
     source_hash = hashlib.md5(spec_str.encode()).hexdigest()[:8]  # noqa: S324
 
     return {
-        'version': plan.package_info.version if plan.package_info else 'unknown',
-        'source_hash': source_hash,
-        'install_spec': str(plan.context.install_spec.model_dump()),
-        'package_name': plan.context.module_name,
-        'console_scripts': plan.package_info.console_scripts if plan.package_info else {},
-        'dependencies': plan.package_info.dependencies or [] if plan.package_info else [],
-        'last_refreshed': str(Path().cwd()),
+        "version": plan.package_info.version if plan.package_info else "unknown",
+        "source_hash": source_hash,
+        "install_spec": str(plan.context.install_spec.model_dump()),
+        "package_name": plan.context.module_name,
+        "console_scripts": plan.package_info.console_scripts
+        if plan.package_info
+        else {},
+        "dependencies": plan.package_info.dependencies or []
+        if plan.package_info
+        else [],
+        "last_refreshed": str(Path().cwd()),
     }
 
 
@@ -404,21 +419,21 @@ def _execute_create_file(operation: FileOperation, plan: ExecutionPlan) -> None:
         operation: FileOperation with operation_type='create_file'
         plan: ExecutionPlan for generating file content
     """
-    if 'pyproject.toml' in str(operation.target_path):
+    if "pyproject.toml" in str(operation.target_path):
         content = _generate_pyproject_content(plan)
         operation.target_path.write_text(content)
 
-    elif '.pkglink-metadata.yaml' in str(operation.target_path):
+    elif ".pkglink-metadata.yaml" in str(operation.target_path):
         metadata = _generate_metadata_content(plan)
-        with operation.target_path.open('w') as f:
+        with operation.target_path.open("w") as f:
             yaml.dump(metadata, f, default_flow_style=False)
     else:
         logger.warning(  # pragma: no cover - defensive, only if new file types are added
-            'no_content_for_file_operation',
+            "no_content_for_file_operation",
             path=str(operation.target_path),
         )
 
-    logger.debug('created_file', path=str(operation.target_path))
+    logger.debug("created_file", path=str(operation.target_path))
 
 
 def execute_plan(plan: ExecutionPlan) -> None:
@@ -429,9 +444,9 @@ def execute_plan(plan: ExecutionPlan) -> None:
     """
     # Dispatch map for operation types
     operation_handlers = {
-        'create_directory': lambda op, _: _execute_create_directory(op),
-        'create_symlink': lambda op, _: _execute_create_symlink(op),
-        'create_file': lambda op, p: _execute_create_file(op, p),
+        "create_directory": lambda op, _: _execute_create_directory(op),
+        "create_symlink": lambda op, _: _execute_create_symlink(op),
+        "create_file": lambda op, p: _execute_create_file(op, p),
     }
 
     for operation in plan.file_operations:

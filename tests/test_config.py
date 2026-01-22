@@ -79,6 +79,25 @@ def test_load_contexts_merges_defaults(config_path: Path) -> None:
     assert set(normalized_links.keys()) == {'integration', 'toolbelt'}
 
 
+def test_load_contexts_preserves_index_url(config_path: Path) -> None:
+    write_config(
+        config_path,
+        """
+        python-packages:
+          private-package:
+            version: "==1.2.3"
+            index-url: "https://${PKG_TOKEN}@packages.example.com/simple"
+        """,
+    )
+
+    contexts = load_contexts(config_path=config_path)
+
+    assert len(contexts) == 1
+    context = contexts[0]
+    assert context.install_spec.source_type == 'package'
+    assert context.cli_args.index_url == 'https://${PKG_TOKEN}@packages.example.com/simple'
+
+
 @pytest.mark.parametrize(
     'content',
     [
