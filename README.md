@@ -202,6 +202,19 @@ links:
 > `symlink_name`. If two entries collide, `pkglink sync` will exit before
 > downloading anything and list the duplicates so you can fix them safely.
 
+#### Private package indexes
+
+For Python package sources, you can set an `index-url` (either in `defaults`
+or on a specific package entry). Values may include environment variables
+like `${PKG_TOKEN}` which are expanded before invoking `uvx`.
+
+```yaml
+python-packages:
+  private-package:
+    version: "==1.2.3"
+    index-url: "https://${PKG_TOKEN}@packages.example.com/simple"
+```
+
 Run the batch:
 
 ```bash

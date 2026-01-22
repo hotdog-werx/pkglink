@@ -38,6 +38,7 @@ class NormalizedEntry:
     dry_run: bool | None = None
     verbose: int | None = None
     from_spec: str | None = None
+    index_url: str | None = None
 
 
 class LinkOptions(BaseModel):
@@ -55,6 +56,7 @@ class LinkOptions(BaseModel):
     dry_run: bool | None = None
     verbose: int | None = None
     from_spec: str | None = Field(default=None, alias='from')
+    index_url: str | None = Field(default=None, alias='index-url')
 
 
 class GitHubEntry(LinkOptions):
@@ -175,6 +177,13 @@ def _group_contexts_by_project(
     return groups
 
 
+def _install_spec_identity(context: PkglinkContext) -> dict[str, Any]:
+    spec_data = context.install_spec.model_dump()
+    if context.index_url and context.install_spec.source_type == 'package':
+        spec_data = {**spec_data, 'index_url': context.index_url}
+    return spec_data
+
+
 def _find_project_duplicates(
     groups: dict[str, list[PkglinkContext]],
 ) -> dict[str, list[str]]:
@@ -188,8 +197,8 @@ def _find_project_duplicates(
         if len(group) <= 1:
             continue
 
-        baseline_spec = group[0].install_spec.model_dump()
-        same_install_spec = all(baseline_spec == other.install_spec.model_dump() for other in group[1:])
+        baseline_spec = _install_spec_identity(group[0])
+        same_install_spec = all(baseline_spec == _install_spec_identity(other) for other in group[1:])
         inside_count = sum(1 for ctx in group if ctx.inside_pkglink)
 
         # Allow duplicates when all entries refer to the exact same install spec
@@ -291,6 +300,7 @@ def _normalize_github_entry(
         'project_name': value.project_name,
         'dry_run': value.dry_run,
         'verbose': value.verbose,
+        'index_url': value.index_url,
     }
     if value.from_spec is not None:
         kwargs['from_spec'] = value.from_spec
@@ -324,6 +334,7 @@ def _normalize_python_package_entry(
         'project_name': value.project_name,
         'dry_run': value.dry_run,
         'verbose': value.verbose,
+        'index_url': value.index_url,
     }
     if value.from_spec is not None:
         kwargs['from_spec'] = value.from_spec
@@ -354,6 +365,7 @@ def _normalize_local_entry(
         'project_name': value.project_name,
         'dry_run': value.dry_run,
         'verbose': value.verbose,
+        'index_url': value.index_url,
     }
     if value.from_spec is not None:
         kwargs['from_spec'] = value.from_spec
@@ -462,6 +474,7 @@ def build_contexts(
 
         symlink_name = entry.symlink_name or defaults.symlink_name
         project_name = entry.project_name or defaults.project_name
+        index_url = entry.index_url if entry.index_url is not None else defaults.index_url
         no_setup = _resolve_bool(entry.no_setup, defaults.no_setup)
         force = _resolve_bool(entry.force, defaults.force)
         skip_resources = _resolve_bool(
@@ -492,6 +505,7 @@ def build_contexts(
             dry_run=dry_run,
             skip_resources=skip_resources,
             inside_pkglink=inside_pkglink,
+            index_url=index_url,
             entry_name=entry_name,
             cli_label='pkglink_batch',
             config_path=str(config_path),

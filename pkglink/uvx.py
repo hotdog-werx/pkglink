@@ -10,12 +10,23 @@ from hotlog import get_logger
 logger = get_logger(__name__)
 
 
+def _redact_uvx_command(cmd: list[str]) -> list[str]:
+    redacted = list(cmd)
+    for idx, arg in enumerate(redacted):
+        if arg == '--index-url' and idx + 1 < len(redacted):
+            redacted[idx + 1] = '***'
+    return redacted
+
+
 def _run_uvx_subprocess(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     """Internal helper to run uvx subprocess commands safely.
 
     This is the only function that should use subprocess.run with uvx.
     """
-    logger.debug('running_uvx_command', command=' '.join(cmd))
+    logger.debug(
+        'running_uvx_command',
+        command=' '.join(_redact_uvx_command(cmd)),
+    )
     env = None
     github_token = os.environ.get('PKGLINK_GITHUB_TOKEN')
     if github_token:
@@ -36,6 +47,7 @@ def _build_site_packages_command(
     *,
     reinstall: bool = False,
     refresh_package: str | None = None,
+    index_url: str | None = None,
 ) -> list[str]:
     """Build the uvx command to get site-packages path.
 
@@ -43,6 +55,7 @@ def _build_site_packages_command(
         install_spec: The package specification to install
         reinstall: Whether to reinstall the package
         refresh_package: Package name to refresh in uv cache
+        index_url: Optional package index URL for private registries
 
     Returns:
         Complete uvx command as list of strings
@@ -53,6 +66,8 @@ def _build_site_packages_command(
     # Refresh the specific package in uv's cache before installing.
     if refresh_package:
         cmd.extend(['--refresh-package', refresh_package])
+    if index_url:
+        cmd.extend(['--index-url', index_url])
     cmd.extend(
         [
             '--from',
@@ -120,6 +135,7 @@ def get_site_packages_path(
     reinstall: bool = False,
     refresh_package: str | None = None,
     expected_package: str,
+    index_url: str | None = None,
 ) -> tuple[Path, str, Path]:
     """Get the site-packages directory for a uvx installation.
 
@@ -128,6 +144,7 @@ def get_site_packages_path(
         reinstall: Whether to reinstall the package
         refresh_package: Package name to refresh in uv cache
         expected_package: The module name to match for dist-info (required)
+        index_url: Optional package index URL for private registries
 
     Returns:
         Tuple of (site_packages_path, dist_info_name_if_found)
@@ -147,6 +164,7 @@ def get_site_packages_path(
         install_spec,
         reinstall=reinstall,
         refresh_package=refresh_package,
+        index_url=index_url,
     )
     result = _run_uvx_subprocess(cmd)
 
