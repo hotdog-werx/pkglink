@@ -117,12 +117,13 @@ class PackageSourceSpec(BaseSourceSpec):
         return base
 
     def is_immutable_reference(self) -> bool:
-        """Packages with pinned versions are immutable."""
-        return self.version is not None
+        """Packages with exact pinned versions are immutable."""
+        # NOTE: Clean this up with a more exact regex later
+        return self.version is not None and self.version.startswith('==')
 
     def uv_install_spec(self) -> str:
         """Return the uv-compatible install spec for this package."""
-        return f'{self.name}=={self.version}' if self.version else self.name
+        return f'{self.name}{self.version}' if self.version else self.name
 
 
 class LocalSourceSpec(BaseSourceSpec):

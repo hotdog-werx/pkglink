@@ -43,7 +43,7 @@ def argparse_source(value: str) -> ParsedSource:
         )
     # Accept as package
     package_match = re.match(
-        r'^([A-Za-z0-9_.-]+)(?:((?:===|==|!=|~=|<=|>=|<|>)[^,]+(?:\s*,\s*(?:===|==|!=|~=|<=|>=|<|>)[^,]+)*))?$',
+        r'^([A-Za-z0-9_.-]+)(?:((?:@|===|==|!=|~=|<=|>=|<|>)[^,]+(?:\s*,\s*(?:===|==|!=|~=|<=|>=|<|>)[^,]+)*))?$',
         value,
     )
     if not package_match:
