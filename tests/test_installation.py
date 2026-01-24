@@ -26,10 +26,19 @@ class TestMutableReferenceLogic:
         """Test that packages with specific versions are immutable."""
         spec = PackageSourceSpec(
             name='requests',
-            version='2.28.0',
+            version='==2.28.0',
             project_name='requests',
         )
         assert spec.is_immutable_reference()  # Covers line 20
+
+    def test_is_mutable_reference_package_with_version_range(self) -> None:
+        """Test that packages with specific versions are immutable."""
+        spec = PackageSourceSpec(
+            name='requests',
+            version='>=2,<3',
+            project_name='requests',
+        )
+        assert not spec.is_immutable_reference()
 
     def test_is_immutable_reference_package_without_version(self) -> None:
         """Test that packages without versions are mutable."""
@@ -102,7 +111,7 @@ class TestMutableReferenceLogic:
             # Immutable reference should not refresh cache
             spec = PackageSourceSpec(
                 name='requests',
-                version='2.28.0',
+                version='==2.28.0',
                 project_name='requests',
             )
             assert not _should_refresh_cache(cache_dir, spec)
