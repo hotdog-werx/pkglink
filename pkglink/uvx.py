@@ -34,20 +34,25 @@ def _run_uvx_subprocess(cmd: list[str]) -> subprocess.CompletedProcess[str]:
 def _build_site_packages_command(
     install_spec: str,
     *,
-    force_reinstall: bool = False,
+    reinstall: bool = False,
+    refresh_package: str | None = None,
 ) -> list[str]:
     """Build the uvx command to get site-packages path.
 
     Args:
         install_spec: The package specification to install
-        force_reinstall: Whether to force reinstall the package
+        reinstall: Whether to reinstall the package
+        refresh_package: Package name to refresh in uv cache
 
     Returns:
         Complete uvx command as list of strings
     """
     cmd = ['uvx', '--verbose']
-    if force_reinstall:
-        cmd.append('--force-reinstall')
+    if reinstall:
+        cmd.append('--reinstall')
+    # Refresh the specific package in uv's cache before installing.
+    if refresh_package:
+        cmd.extend(['--refresh-package', refresh_package])
     cmd.extend(
         [
             '--from',
@@ -112,14 +117,16 @@ def _extract_dist_info_path(
 def get_site_packages_path(
     install_spec: str,
     *,
-    force_reinstall: bool = False,
+    reinstall: bool = False,
+    refresh_package: str | None = None,
     expected_package: str,
 ) -> tuple[Path, str, Path]:
     """Get the site-packages directory for a uvx installation.
 
     Args:
         install_spec: The package specification to install (e.g., git+https://...)
-        force_reinstall: Whether to force reinstall the package
+        reinstall: Whether to reinstall the package
+        refresh_package: Package name to refresh in uv cache
         expected_package: The module name to match for dist-info (required)
 
     Returns:
@@ -131,13 +138,15 @@ def get_site_packages_path(
     logger.debug(
         'getting_site_packages_path',
         install_spec=install_spec,
-        force_reinstall=force_reinstall,
+        reinstall=reinstall,
+        refresh_package=refresh_package,
         expected_package=expected_package,
     )
 
     cmd = _build_site_packages_command(
         install_spec,
-        force_reinstall=force_reinstall,
+        reinstall=reinstall,
+        refresh_package=refresh_package,
     )
     result = _run_uvx_subprocess(cmd)
 

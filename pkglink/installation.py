@@ -309,13 +309,15 @@ def _perform_uvx_installation(
     try:
         # For mutable references (branches), force reinstall to get latest changes
         force_reinstall = not spec.is_immutable_reference()
-
+        # Local path sources can change between runs, so refresh their cache entry.
+        refresh_package = spec.project_name if spec.source_type == 'local' else None
         if force_reinstall:
             logger.info(
                 'downloading_package_with_uvx_force_reinstall',
                 package=spec.name,
                 source=install_spec,
                 reason='mutable_reference',
+                _verbose_refresh_package=refresh_package,
                 _display_level=1,
             )
         else:
@@ -323,13 +325,15 @@ def _perform_uvx_installation(
                 'downloading_package_with_uvx',
                 package=spec.name,
                 source=install_spec,
+                _verbose_refresh_package=refresh_package,
                 _display_level=1,
             )
 
         # Get the site-packages directory from uvx's environment
         site_packages, dist_info_name, dist_info_path = get_site_packages_path(
             install_spec,
-            force_reinstall=force_reinstall,
+            reinstall=force_reinstall,
+            refresh_package=refresh_package,
             expected_package=spec.project_name,
         )
         logger.debug(
