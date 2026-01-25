@@ -1,0 +1,49 @@
+profiles:
+  basedpyright:
+    extensions: ['.py']
+    format_tools: []
+    check_tools:
+      - name: basedpyright
+        command: uvx
+        args:
+          - basedpyright@${TB_BASEDPYRIGHT_VERSION:latest}
+          - ${TB_BASEDPYRIGHT_EXTRA_ARGS:}
+        file_handling_mode: batch
+        default_target: .
+        description: basedPyright type checker
+
+  complexity:
+    extensions: ['.py']
+    format_tools: []
+    check_tools:
+      - name: complexity
+        command: uvx
+        args:
+          - complexipy@${TB_COMPLEXIPY_VERSION:latest}
+          - -mx
+          - ${TB_COMPLEXIPY_THRESHOLD:10}
+        file_handling_mode: batch
+        default_target: .
+        description: Python complexity checker
+
+  coverage:
+    extensions: ['.py']
+    format_tools: []
+    check_tools:
+      - name: coverage
+        description: Run tests with coverage
+        command: pytest
+        args:
+          - -${TB_COVERAGE_VERBOSE:v}
+          - --tb=long
+          - --cov-config=${TB_COVERAGE_CONFIG:.codeguide/configs/coveragerc.toml}
+          - --cov=${TB_PROJECT_SOURCE:src}
+          - --cov-report=term-missing
+          - --cov-report=html:.coverage-files/htmlcov
+          - ${TB_COVERAGE_EXTRA_ARGS:}
+        file_handling_mode: batch
+        default_target: ${TB_COVERAGE_TARGET:tests}
+
+variables:
+  TB_COMPLEXIPY_VERSION: 4.0.2
+  TB_BASEDPYRIGHT_VERSION: 1.31.3

@@ -1,7 +1,7 @@
 include:
   - .codeguide/toolbelt/toolbelt.yaml
+  - ./python-dev.yaml
 
 variables:
   TB_COVERAGE_CONFIG: .codeguide/configs/coveragerc.toml
   TB_COVERAGE_VERBOSE: vvv
-  TB_COVERAGE_EXTRA_ARGS: --tb=long
