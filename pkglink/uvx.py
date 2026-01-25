@@ -13,8 +13,8 @@ logger = get_logger(__name__)
 def _redact_uvx_command(cmd: list[str]) -> list[str]:
     redacted = list(cmd)
     for idx, arg in enumerate(redacted):
-        if arg == "--index-url" and idx + 1 < len(redacted):
-            redacted[idx + 1] = "***"
+        if arg == '--index-url' and idx + 1 < len(redacted):
+            redacted[idx + 1] = '***'
     return redacted
 
 
@@ -24,14 +24,14 @@ def _run_uvx_subprocess(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     This is the only function that should use subprocess.run with uvx.
     """
     logger.debug(
-        "running_uvx_command",
-        command=" ".join(_redact_uvx_command(cmd)),
+        'running_uvx_command',
+        command=' '.join(_redact_uvx_command(cmd)),
     )
     env = None
-    github_token = os.environ.get("PKGLINK_GITHUB_TOKEN")
+    github_token = os.environ.get('PKGLINK_GITHUB_TOKEN')
     if github_token:
         env = os.environ.copy()
-        env["GITHUB_TOKEN"] = github_token
+        env['GITHUB_TOKEN'] = github_token
     return subprocess.run(  # noqa: S603 - executing uvx
         cmd,
         capture_output=True,
@@ -58,18 +58,18 @@ def _build_site_packages_command(
     Returns:
         Complete uvx command as list of strings
     """
-    cmd = ["uvx", "--verbose"]
+    cmd = ['uvx', '--verbose']
     if force_reinstall:
-        cmd.append("--force-reinstall")
+        cmd.append('--force-reinstall')
     if index_url:
-        cmd.extend(["--index-url", index_url])
+        cmd.extend(['--index-url', index_url])
     cmd.extend(
         [
-            "--from",
+            '--from',
             install_spec,
-            "python",
-            "-c",
-            "import site; print(site.getsitepackages()[0])",
+            'python',
+            '-c',
+            'import site; print(site.getsitepackages()[0])',
         ],
     )
     return cmd
@@ -77,7 +77,7 @@ def _build_site_packages_command(
 
 def _normalize_name(name: str) -> str:
     """Normalize package/dist-info names for matching."""
-    return name.lower().replace("-", "_").replace(".", "_")
+    return name.lower().replace('-', '_').replace('.', '_')
 
 
 def _extract_dist_info_path(
@@ -97,18 +97,18 @@ def _extract_dist_info_path(
         RuntimeError: If no dist-info is found
     """
     dist_info_candidates = []
-    stderr_lines = stderr_output.split("\n")
+    stderr_lines = stderr_output.split('\n')
     for line in stderr_lines:
-        if "Looking at `.dist-info` at:" in line:
+        if 'Looking at `.dist-info` at:' in line:
             # Extract the full path from the line
-            match = re.search(r"at: (.*[\\/][^\\/]+\.dist-info)", line)
+            match = re.search(r'at: (.*[\\/][^\\/]+\.dist-info)', line)
             if match:
                 full_path = match.group(1).strip()
                 dist_info_name = Path(full_path).parts[-1]
                 dist_info_candidates.append((dist_info_name, Path(full_path)))
 
     logger.debug(
-        "all_dist_info_paths_found",
+        'all_dist_info_paths_found',
         dist_info_candidates=[(n, str(p)) for n, p in dist_info_candidates],
         uvx_stderr_lines=len(stderr_lines),
     )
@@ -118,8 +118,8 @@ def _extract_dist_info_path(
             return name, path
     error_msg = (
         f"Could not find dist-info for expected package '{expected_package}'.\n"
-        "If installing from GitHub, you may need to provide --project-name matching the PyPI/project name.\n"
-        f"Found dist-info candidates: {dist_info_candidates} (stderr lines: {len(stderr_lines)})"
+        'If installing from GitHub, you may need to provide --project-name matching the PyPI/project name.\n'
+        f'Found dist-info candidates: {dist_info_candidates} (stderr lines: {len(stderr_lines)})'
     )
     raise RuntimeError(error_msg)
 
@@ -146,7 +146,7 @@ def get_site_packages_path(
         RuntimeError: If uvx installation fails
     """
     logger.debug(
-        "getting_site_packages_path",
+        'getting_site_packages_path',
         install_spec=install_spec,
         force_reinstall=force_reinstall,
         expected_package=expected_package,
@@ -161,11 +161,11 @@ def get_site_packages_path(
 
     if result.returncode != 0:
         logger.error(
-            "uvx_get_site_packages_failed",
+            'uvx_get_site_packages_failed',
             stderr=result.stderr,
             stdout=result.stdout,
         )
-        msg = f"Failed to get site-packages path with uvx: {result.stderr}"
+        msg = f'Failed to get site-packages path with uvx: {result.stderr}'
         raise RuntimeError(msg)
 
     site_packages = Path(result.stdout.strip())
@@ -175,7 +175,7 @@ def get_site_packages_path(
     )
 
     logger.debug(
-        "uvx_site_packages_found",
+        'uvx_site_packages_found',
         path=str(site_packages),
         dist_info_name=dist_info_name,
         dist_info_path=str(dist_info_path),
@@ -197,13 +197,13 @@ def refresh_package(package_name: str, from_path: Path) -> bool:
         True if refresh was successful, False otherwise
     """
     cmd = [
-        "uvx",
-        "--refresh-package",
+        'uvx',
+        '--refresh-package',
         package_name,
-        "--from",
+        '--from',
         str(from_path),
-        "python",
-        "-c",
+        'python',
+        '-c',
         'print("installed")',  # Simple command to trigger installation
     ]
 
