@@ -36,6 +36,8 @@ profiles:
         args:
           - -${TB_COVERAGE_VERBOSE:v}
           - --tb=long
+          - --maxfail=1
+          - -x
           - --cov-config=${TB_COVERAGE_CONFIG:.codeguide/configs/coveragerc.toml}
           - --cov=${TB_PROJECT_SOURCE:src}
           - --cov-report=term-missing
