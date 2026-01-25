@@ -26,6 +26,12 @@ jobs:
         uses: jdx/mise-action@v3
       - name: poe
         run: uv tool install poethepoet
+
+      - name: debug
+        shell: python
+        run: |
+          import sys, os
+          print(f"DEBUG: platform={sys.platform}, CI={os.environ.get('CI')}, GITHUB_ACTIONS={os.environ.get('GITHUB_ACTIONS')}")
       - name: dependencies
         run: uvx --from poethepoet poe uv-sync
       - name: check-dprint
