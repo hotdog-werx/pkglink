@@ -8,7 +8,7 @@ requires-python = ">=3.11"
 dynamic = ["version"]
 
 dependencies = [
-  "hotlog>=0.1.1",
+  "hotlog @ git+https://github.com/hotdog-werx/hotlog.git@fix/rich-chop",
   "pydantic>=2.0.0",
   "pyyaml>=6.0, <7",
   "pathspec>=0.12.0, <1",
