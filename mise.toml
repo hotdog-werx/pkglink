@@ -10,6 +10,7 @@ TB_PROJECT_SOURCE = "pkglink"
 uv = "0.7.20"
 dprint = "0.50.1"
 starship = "1.23.0"
+"pipx:poethepoet" = "0.40.0"
 
 [hooks]
 postinstall = [

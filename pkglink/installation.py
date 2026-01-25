@@ -1,6 +1,5 @@
 import contextlib
 import hashlib
-import re
 import shutil
 from pathlib import Path
 
@@ -13,24 +12,6 @@ from pkglink.uvx import get_site_packages_path
 logger = get_logger(__name__)
 
 
-def _is_immutable_reference(spec: SourceSpec) -> bool:
-    """Check if a source specification refers to an immutable reference that can be cached indefinitely."""
-    if spec.source_type == 'package' and spec.version:
-        # Package with specific version - immutable
-        return True
-
-    if spec.source_type == 'github' and spec.version:
-        # GitHub with commit hash (40 char hex) - immutable
-        if re.match(r'^[a-f0-9]{40}$', spec.version):
-            return True
-        # GitHub with semver-like version tag - generally immutable
-        if re.match(r'^v?\d+\.\d+\.\d+', spec.version):
-            return True
-
-    # Everything else (branches, latest packages) - mutable
-    return False
-
-
 def _should_refresh_cache(cache_dir: Path, spec: SourceSpec) -> bool:
     """Determine if cache should be refreshed based on reference type."""
     if not cache_dir.exists():
@@ -38,7 +19,7 @@ def _should_refresh_cache(cache_dir: Path, spec: SourceSpec) -> bool:
 
     # For immutable references, never refresh our local cache
     # For mutable references, always refresh our local cache
-    return not _is_immutable_reference(spec)
+    return not spec.is_immutable_reference()
 
 
 def _find_exact_package_match(
@@ -327,7 +308,7 @@ def _perform_uvx_installation(
     """
     try:
         # For mutable references (branches), force reinstall to get latest changes
-        force_reinstall = not _is_immutable_reference(spec)
+        force_reinstall = not spec.is_immutable_reference()
 
         if force_reinstall:
             logger.info(

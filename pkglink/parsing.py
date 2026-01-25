@@ -5,6 +5,9 @@ from hotlog import get_logger
 
 from pkglink.models import (
     BaseCliArgs,
+    GitHubSourceSpec,
+    LocalSourceSpec,
+    PackageSourceSpec,
     ParsedSource,
     PkglinkContext,
     SourceSpec,
@@ -20,23 +23,20 @@ def parse_source(
     """Convert a ParsedSource object into a SourceSpec, always setting project_name."""
     # Ensure required fields are present and fallback to empty string if needed
     if source.source_type == 'github':
-        return SourceSpec(
-            source_type='github',
+        return GitHubSourceSpec(
             name=source.repo or '',
             org=source.org or '',
             version=source.version,
             project_name=project_name or source.repo or '',
         )
     if source.source_type == 'local':
-        return SourceSpec(
-            source_type='local',
+        return LocalSourceSpec(
             name=source.name or '',
             local_path=source.local_path or '',
             project_name=project_name or source.name or '',
         )
     # package
-    return SourceSpec(
-        source_type='package',
+    return PackageSourceSpec(
         name=source.name or '',
         version=source.version,
         project_name=project_name or source.name or '',
@@ -107,23 +107,7 @@ def parse_github_source(value: str) -> tuple[ParsedSource | None, str]:
 
 def build_uv_install_spec(spec: SourceSpec) -> str:
     """Build UV install specification from source spec."""
-    if spec.source_type == 'github':
-        base_url = f'git+https://github.com/{spec.org}/{spec.name}.git'
-        return f'{base_url}@{spec.version}' if spec.version else base_url
-
-    if spec.source_type == 'package':
-        return f'{spec.name}=={spec.version}' if spec.version else spec.name
-
-    if spec.source_type == 'local':
-        # For local sources, resolve the path and return it for uvx installation
-        # Use local_path if available, otherwise fall back to name for backwards compatibility
-        source_path = spec.local_path or spec.name
-        path = Path(source_path).resolve()
-        return str(path)
-
-    # next statements should be unreachable since source_type is validated
-    msg = f'Unsupported source type: {spec.source_type}'  # pragma: no cover
-    raise ValueError(msg)  # pragma: no cover
+    return spec.uv_install_spec()
 
 
 def create_pkglink_context(args: BaseCliArgs) -> PkglinkContext:

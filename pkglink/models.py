@@ -1,7 +1,11 @@
+import os
+import re
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 class PackageInfo(BaseModel):
@@ -26,35 +30,133 @@ class ParsedSource(BaseModel):
     local_path: str | None = None
 
 
-class SourceSpec(BaseModel):
-    """Represents a parsed source specification."""
+class BaseSourceSpec(BaseModel, ABC):
+    """Abstract base for parsed source specifications."""
 
-    source_type: Literal['github', 'package', 'local']
     name: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
     version: str | None = None
-    org: str | None = None  # For GitHub sources
-    local_path: str | None = None  # For local sources, stores the original path
     project_name: Annotated[
         str,
         StringConstraints(min_length=1, strip_whitespace=True),
     ]  # Required project name
 
+    @abstractmethod
     def canonical_spec(self) -> str:
         """Return a canonical representation of the source specification."""
-        if self.source_type == 'github':
-            org = self.org or ''
-            delimiter = '/' if org else ''
-            base = f'github:{org}{delimiter}{self.name}'
-        elif self.source_type == 'package':
-            base = f'python-package:{self.name}'
-        else:
-            path = self.local_path or self.name
-            base = f'local:{path}'
+
+    @abstractmethod
+    def is_immutable_reference(self) -> bool:
+        """Return True if the source reference can be cached indefinitely."""
+
+    @abstractmethod
+    def uv_install_spec(self) -> str:
+        """Return the uv-compatible install spec for this source."""
+
+    def display_name(self) -> str:
+        """Return a human-friendly display name for logging."""
+        return self.name
+
+
+def _resolve_github_server_host() -> str:
+    raw = os.environ.get('GITHUB_SERVER_URL', '').strip()
+    if not raw:
+        return 'github.com'
+    parsed = urlparse(raw)
+    host = parsed.netloc or parsed.path
+    return host.rstrip('/') or 'github.com'
+
+
+class GitHubSourceSpec(BaseSourceSpec):
+    """GitHub source specification."""
+
+    source_type: Literal['github'] = 'github'
+    org: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+
+    def canonical_spec(self) -> str:
+        """Return a canonical representation of the source specification."""
+        base = f'github:{self.org}/{self.name}'
 
         if self.version:
             base = f'{base}@{self.version}'
 
         return base
+
+    def is_immutable_reference(self) -> bool:
+        """Return True for commit hashes or semver tags."""
+        if not self.version:
+            return False
+
+        # Commit hashes are immutable.
+        if re.match(r'^[a-f0-9]{40}$', self.version):
+            return True
+
+        # Semver-like tags are generally immutable.
+        return re.match(r'^v?\d+\.\d+\.\d+', self.version) is not None
+
+    def uv_install_spec(self) -> str:
+        """Return the uv-compatible install spec for this GitHub repo."""
+        base_url = _resolve_github_server_host()
+        base = f'git+https://{base_url}/{self.org}/{self.name}.git'
+        return f'{base}@{self.version}' if self.version else base
+
+    def display_name(self) -> str:
+        """Return a human-friendly display name for logging."""
+        return f'{self.org}/{self.name}'
+
+
+class PackageSourceSpec(BaseSourceSpec):
+    """Python package source specification."""
+
+    source_type: Literal['package'] = 'package'
+
+    def canonical_spec(self) -> str:
+        """Return a canonical representation of the source specification."""
+        base = f'python-package:{self.name}'
+        if self.version:
+            base = f'{base}@{self.version}'
+        return base
+
+    def is_immutable_reference(self) -> bool:
+        """Packages with pinned versions are immutable."""
+        return self.version is not None
+
+    def uv_install_spec(self) -> str:
+        """Return the uv-compatible install spec for this package."""
+        return f'{self.name}=={self.version}' if self.version else self.name
+
+
+class LocalSourceSpec(BaseSourceSpec):
+    """Local path source specification."""
+
+    source_type: Literal['local'] = 'local'
+    local_path: str | None = None  # Stores the original path
+
+    def canonical_spec(self) -> str:
+        """Return a canonical representation of the source specification."""
+        path = self.local_path or self.name
+        base = f'local:{path}'
+        if self.version:
+            base = f'{base}@{self.version}'
+        return base
+
+    def is_immutable_reference(self) -> bool:
+        """Local paths are always mutable."""
+        return False
+
+    def uv_install_spec(self) -> str:
+        """Return the uv-compatible install spec for this local path."""
+        source_path = self.local_path or self.name
+        return str(Path(source_path).resolve())
+
+    def display_name(self) -> str:
+        """Return a human-friendly display name for logging."""
+        return f'local:{self.local_path or self.name}'
+
+
+SourceSpec = Annotated[
+    GitHubSourceSpec | PackageSourceSpec | LocalSourceSpec,
+    Field(discriminator='source_type'),
+]
 
 
 class LinkTarget(BaseModel):
@@ -228,11 +330,7 @@ class PkglinkContext(BaseModel):
 
     def get_display_name(self) -> str:
         """Get a human-readable display name for logging."""
-        if self.source_type == 'github':
-            return f'{self.install_spec.org}/{self.install_spec.name}'
-        if self.source_type == 'local':
-            return f'local:{self.install_spec.local_path or self.install_spec.name}'
-        return self.install_spec.name
+        return self.install_spec.display_name()
 
     @property
     def primary_target_display(self) -> str:
