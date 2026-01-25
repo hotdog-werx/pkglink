@@ -124,7 +124,7 @@ toml = [
 [[package]]
 name = "hotlog"
 version = "0.0.0.dev0"
-source = { git = "https://github.com/hotdog-werx/hotlog.git?rev=c828d8f08289dd2e1f82be9d63e394a0a6e0b0c1#c828d8f08289dd2e1f82be9d63e394a0a6e0b0c1" }
+source = { git = "https://github.com/hotdog-werx/hotlog.git?rev=8a5f8e65e28d895c14d5dc182c50ab91e132d4b0#8a5f8e65e28d895c14d5dc182c50ab91e132d4b0" }
 dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
@@ -204,7 +204,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "argcomplete", specifier = ">=3.6.2,<4" },
-    { name = "hotlog", git = "https://github.com/hotdog-werx/hotlog.git?rev=c828d8f08289dd2e1f82be9d63e394a0a6e0b0c1" },
+    { name = "hotlog", git = "https://github.com/hotdog-werx/hotlog.git?rev=8a5f8e65e28d895c14d5dc182c50ab91e132d4b0" },
     { name = "pathspec", specifier = ">=0.12.0,<1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
