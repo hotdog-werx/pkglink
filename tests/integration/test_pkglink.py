@@ -281,7 +281,8 @@ def test_pkglink_error_cases(
     result = run_pkglink(errcase.args, test_dir)
     assert result.returncode == 1
     assert 'ERROR: cli_operation_failed' in result.stdout
-    assert errcase.expected_message in result.stdout.replace('\n', ' ')
+    assert errcase.expected_message in result.stdout
+    #   assert errcase.expected_message in result.stdout.replace('\n', ' ')
 
 
 def test_pkglink_self_link(tmp_path: Path, run_pkglink: CliCommand) -> None:
