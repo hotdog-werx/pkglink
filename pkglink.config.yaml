@@ -10,7 +10,7 @@
 # GitHub repositories
 github:
   # Simple format: org/repo: version
-  hotdog-werx/codeguide: master
+  hotdog-werx/codeguide: topic/repolish
 
   # Detailed format with options
   hotdog-werx/pkglink-integration-pkg:
