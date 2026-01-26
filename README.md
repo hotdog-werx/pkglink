@@ -109,6 +109,13 @@ pkglink link --dry-run mypackage templates
 pkglink link --force mypackage resources
 ```
 
+Python package versions use standard PEP 440 specifiers. For ranges, include the
+specifier directly in the package source, for example:
+
+```bash
+pkglink link "mypackage>=1.2,<2.0" resources
+```
+
 #### Command Line Options
 
 - `source`: The package to install (can be PyPI package or GitHub repo)
