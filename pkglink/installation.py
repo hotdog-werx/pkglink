@@ -1,5 +1,6 @@
 import contextlib
 import hashlib
+import os
 import shutil
 from pathlib import Path
 
@@ -20,6 +21,13 @@ def _should_refresh_cache(cache_dir: Path, spec: SourceSpec) -> bool:
     # For immutable references, never refresh our local cache
     # For mutable references, always refresh our local cache
     return not spec.is_immutable_reference()
+
+
+def _resolve_index_url(index_url: str | None) -> str | None:
+    if not index_url:
+        return None
+    resolved = os.path.expandvars(index_url).strip()
+    return resolved or None
 
 
 def _find_exact_package_match(
@@ -194,6 +202,7 @@ def resolve_source_path(
     spec: SourceSpec,
     module_name: str | None = None,
     target_subdir: str = 'resources',
+    index_url: str | None = None,
 ) -> Path:
     """Resolve source specification to an actual filesystem path."""
     logger.debug(
@@ -212,18 +221,25 @@ def resolve_source_path(
     logger.debug('attempting_uvx_installation')
     install_dir, _, _ = install_with_uvx(
         spec,
+        index_url=index_url,
     )  # We don't need dist_info_name or dist_info_path here
     package_root = find_package_root(install_dir, target_module, target_subdir)
     logger.debug('successfully_resolved_via_uvx', path=str(package_root))
     return package_root
 
 
-def _create_cache_directory(spec: SourceSpec, install_spec: str) -> Path:
+def _create_cache_directory(
+    spec: SourceSpec,
+    install_spec: str,
+    *,
+    index_url: str | None = None,
+) -> Path:
     """Create a predictable cache directory for the package.
 
     Args:
         spec: Source specification
         install_spec: Built uv install specification
+        index_url: Optional package index URL for private registries
 
     Returns:
         Path to the cache directory
@@ -231,8 +247,11 @@ def _create_cache_directory(spec: SourceSpec, install_spec: str) -> Path:
     cache_base = Path.home() / '.cache' / 'pkglink'
     cache_base.mkdir(parents=True, exist_ok=True)
 
-    # Use a hash of the install spec to create a unique cache directory
-    spec_hash = hashlib.sha256(install_spec.encode()).hexdigest()[:8]
+    cache_key = install_spec
+    if index_url and spec.source_type == 'package':
+        cache_key = f'{install_spec}|index_url={index_url}'
+    # Use a hash of the cache key to create a unique cache directory
+    spec_hash = hashlib.sha256(cache_key.encode()).hexdigest()[:8]
     return cache_base / f'{spec.name}_{spec_hash}'
 
 
@@ -292,6 +311,8 @@ def _perform_uvx_installation(
     spec: SourceSpec,
     install_spec: str,
     cache_dir: Path,
+    *,
+    index_url: str | None = None,
 ) -> tuple[Path, str, Path]:
     """Perform the actual uvx installation and cache setup.
 
@@ -299,6 +320,7 @@ def _perform_uvx_installation(
         spec: Source specification
         install_spec: Built uv install specification
         cache_dir: Cache directory to populate
+        index_url: Optional package index URL for private registries
 
     Returns:
         Tuple of (cache_dir, dist_info_name)
@@ -331,6 +353,7 @@ def _perform_uvx_installation(
             install_spec,
             force_reinstall=force_reinstall,
             expected_package=spec.project_name,
+            index_url=index_url,
         )
         logger.debug(
             'uvx_installed_to_site_packages',
@@ -383,18 +406,27 @@ def _perform_uvx_installation(
         return cache_dir, dist_info_name, dist_info_path
 
 
-def install_with_uvx(spec: SourceSpec) -> tuple[Path, str, Path | None]:
+def install_with_uvx(
+    spec: SourceSpec,
+    *,
+    index_url: str | None = None,
+) -> tuple[Path, str, Path | None]:
     """Install package using uvx, then copy to a predictable location."""
     logger.debug('installing_using_uvx', package=spec.name)
 
     install_spec = build_uv_install_spec(spec)
+    resolved_index_url = _resolve_index_url(index_url) if spec.source_type == 'package' else None
     logger.debug(
         'install_spec',
         spec=install_spec,
         _verbose_source_spec=spec.model_dump(),
     )
 
-    cache_dir = _create_cache_directory(spec, install_spec)
+    cache_dir = _create_cache_directory(
+        spec,
+        install_spec,
+        index_url=resolved_index_url,
+    )
 
     # If already cached and shouldn't be refreshed, return the existing directory
     if cache_dir.exists() and not _should_refresh_cache(cache_dir, spec):
@@ -423,4 +455,9 @@ def install_with_uvx(spec: SourceSpec) -> tuple[Path, str, Path | None]:
     _prepare_cache_directory(cache_dir, spec)
 
     # Perform the installation
-    return _perform_uvx_installation(spec, install_spec, cache_dir)
+    return _perform_uvx_installation(
+        spec,
+        install_spec,
+        cache_dir,
+        index_url=resolved_index_url,
+    )

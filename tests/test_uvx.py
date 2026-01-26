@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     import pytest
     from pytest_mock import MockerFixture
 
-from pkglink.uvx import _run_uvx_subprocess
+from pkglink.uvx import _build_site_packages_command, _run_uvx_subprocess
 
 DUMMY_TOKEN = 'not-a-real-token'  # noqa: S105
 
@@ -76,3 +76,13 @@ def test_run_uvx_subprocess_inherits_github_token(
     _run_uvx_subprocess(['uvx', '--version'])
 
     assert captured['env'] is None
+
+
+def test_build_site_packages_command_includes_index_url() -> None:
+    cmd = _build_site_packages_command(
+        'demo==1.0.0',
+        index_url='https://packages.example.com/simple',
+    )
+
+    assert '--index-url' in cmd
+    assert 'https://packages.example.com/simple' in cmd

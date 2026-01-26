@@ -118,11 +118,11 @@ class PackageSourceSpec(BaseSourceSpec):
 
     def is_immutable_reference(self) -> bool:
         """Packages with pinned versions are immutable."""
-        return self.version is not None
+        return self.version is not None and self.version.startswith('==')
 
     def uv_install_spec(self) -> str:
         """Return the uv-compatible install spec for this package."""
-        return f'{self.name}=={self.version}' if self.version else self.name
+        return f'{self.name}{self.version}' if self.version else self.name
 
 
 class LocalSourceSpec(BaseSourceSpec):
@@ -201,6 +201,7 @@ class BaseCliArgs(BaseModel):
     no_setup: bool = False  # Skip post-install setup steps
     force: bool = False  # Overwrite existing symlinks/directories
     dry_run: bool = False  # Show what would be done without executing
+    index_url: str | None = None  # Optional package index URL for private registries
 
 
 class PkglinkCliArgs(BaseCliArgs):
@@ -296,6 +297,11 @@ class PkglinkContext(BaseModel):
         return isinstance(self.cli_args, PkglinkBatchCliArgs)
 
     @property
+    def index_url(self) -> str | None:
+        """Return the package index URL when provided."""
+        return getattr(self.cli_args, 'index_url', None)
+
+    @property
     def cli_label(self) -> str:
         """Friendly CLI label for logging."""
         if self.is_pkglink_cli:
@@ -342,6 +348,9 @@ class PkglinkContext(BaseModel):
 
     def model_dump_for_logging(self) -> dict:
         """Get a dict suitable for verbose logging."""
+        cli_args = self.cli_args.model_dump()
+        if cli_args.get('index_url'):
+            cli_args['index_url'] = '***'
         return {
             'source_type': self.source_type,
             'module_name': self.module_name,
@@ -351,7 +360,7 @@ class PkglinkContext(BaseModel):
             'inside_pkglink': self.inside_pkglink,
             'cli_type': self.cli_label,
             'install_spec': self.install_spec.model_dump(),
-            'cli_args': self.cli_args.model_dump(),
+            'cli_args': cli_args,
         }
 
     def get_concise_summary(self) -> dict:

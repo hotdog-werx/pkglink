@@ -107,7 +107,10 @@ def _plan_uvx_cache(
         logger.debug('using_pre_installed_cache', cache_dir=str(cache_dir))
         plan.uvx_cache_dir = cache_dir
     else:
-        cache_dir, dist_info_name, _ = install_with_uvx(context.install_spec)
+        cache_dir, dist_info_name, _ = install_with_uvx(
+            context.install_spec,
+            index_url=context.index_url,
+        )
         plan.uvx_cache_dir = cache_dir
     return cache_dir, dist_info_name
 

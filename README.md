@@ -109,6 +109,13 @@ pkglink link --dry-run mypackage templates
 pkglink link --force mypackage resources
 ```
 
+Python package versions use standard PEP 440 specifiers. For ranges, include the
+specifier directly in the package source, for example:
+
+```bash
+pkglink link "mypackage>=1.2,<2.0" resources
+```
+
 #### Command Line Options
 
 - `source`: The package to install (can be PyPI package or GitHub repo)
@@ -201,6 +208,19 @@ links:
 > **Warning:** Each link must resolve to a unique `project_name` and
 > `symlink_name`. If two entries collide, `pkglink sync` will exit before
 > downloading anything and list the duplicates so you can fix them safely.
+
+#### Private package indexes
+
+For Python package sources, you can set an `index-url` (either in `defaults` or
+on a specific package entry). Values may include environment variables like
+`${PKG_TOKEN}` which are expanded before invoking `uvx`.
+
+```yaml
+python-packages:
+  private-package:
+    version: '==1.2.3'
+    index-url: 'https://${PKG_TOKEN}@packages.example.com/simple'
+```
 
 Run the batch:
 

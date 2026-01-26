@@ -16,6 +16,8 @@ from pkglink.installation import (
 from pkglink.models import GitHubSourceSpec, PackageSourceSpec
 from pkglink.parsing import build_uv_install_spec
 
+DUMMY_TOKEN = 'not-a-real-token'  # noqa: S105
+
 
 class TestMutableReferenceLogic:
     """Tests for mutable reference detection and caching logic."""
@@ -24,10 +26,19 @@ class TestMutableReferenceLogic:
         """Test that packages with specific versions are immutable."""
         spec = PackageSourceSpec(
             name='requests',
-            version='2.28.0',
+            version='==2.28.0',
             project_name='requests',
         )
         assert spec.is_immutable_reference()  # Covers line 20
+
+    def test_is_mutable_reference_package_with_version_range(self) -> None:
+        """Test that packages with specific versions are immutable."""
+        spec = PackageSourceSpec(
+            name='requests',
+            version='>=2,<3',
+            project_name='requests',
+        )
+        assert not spec.is_immutable_reference()
 
     def test_is_immutable_reference_package_without_version(self) -> None:
         """Test that packages without versions are mutable."""
@@ -100,7 +111,7 @@ class TestMutableReferenceLogic:
             # Immutable reference should not refresh cache
             spec = PackageSourceSpec(
                 name='requests',
-                version='2.28.0',
+                version='==2.28.0',
                 project_name='requests',
             )
             assert not _should_refresh_cache(cache_dir, spec)
@@ -194,3 +205,40 @@ class TestInstallWithUvx:
             )
             with pytest.raises(RuntimeError, match='Failed to install'):
                 install_with_uvx(spec)
+
+    def test_install_with_uvx_expands_index_url_env_vars(
+        self,
+        mocker: MockerFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setenv('PKG_TOKEN', DUMMY_TOKEN)
+        mocker.patch('pathlib.Path.home', return_value=tmp_path)
+        captured: dict[str, str | None] = {}
+
+        def _fake_install(
+            spec: PackageSourceSpec,
+            install_spec: str,
+            cache_dir: Path,
+            *,
+            index_url: str | None = None,
+        ) -> tuple[Path, str, Path | None]:
+            captured['index_url'] = index_url
+            return cache_dir, 'demo.dist-info', None
+
+        mocker.patch.object(
+            installation,
+            '_perform_uvx_installation',
+            side_effect=_fake_install,
+        )
+
+        spec = PackageSourceSpec(
+            name='private-package',
+            project_name='private-package',
+        )
+        install_with_uvx(
+            spec,
+            index_url='https://${PKG_TOKEN}@packages.example.com/simple',
+        )
+
+        assert captured['index_url'] == f'https://{DUMMY_TOKEN}@packages.example.com/simple'

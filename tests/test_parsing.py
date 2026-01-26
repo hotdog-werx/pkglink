@@ -72,10 +72,22 @@ class TestParseSource:
                 expected_name='mypackage',
             ),
             ParseTestCase(
-                source='mypackage@1.0.0',
+                source='mypackage==1.0.0',
                 expected_type='package',
                 expected_name='mypackage',
-                expected_version='1.0.0',
+                expected_version='==1.0.0',
+            ),
+            ParseTestCase(
+                source='mypackage>=1,<2',
+                expected_type='package',
+                expected_name='mypackage',
+                expected_version='>=1,<2',
+            ),
+            ParseTestCase(
+                source='mypackage~=3',
+                expected_type='package',
+                expected_name='mypackage',
+                expected_version='~=3',
             ),
         ],
     )

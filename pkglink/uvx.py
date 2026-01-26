@@ -10,12 +10,23 @@ from hotlog import get_logger
 logger = get_logger(__name__)
 
 
+def _redact_uvx_command(cmd: list[str]) -> list[str]:
+    redacted = list(cmd)
+    for idx, arg in enumerate(redacted):
+        if arg == '--index-url' and idx + 1 < len(redacted):
+            redacted[idx + 1] = '***'
+    return redacted
+
+
 def _run_uvx_subprocess(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     """Internal helper to run uvx subprocess commands safely.
 
     This is the only function that should use subprocess.run with uvx.
     """
-    logger.debug('running_uvx_command', command=' '.join(cmd))
+    logger.debug(
+        'running_uvx_command',
+        command=' '.join(_redact_uvx_command(cmd)),
+    )
     env = None
     github_token = os.environ.get('PKGLINK_GITHUB_TOKEN')
     if github_token:
@@ -35,12 +46,14 @@ def _build_site_packages_command(
     install_spec: str,
     *,
     force_reinstall: bool = False,
+    index_url: str | None = None,
 ) -> list[str]:
     """Build the uvx command to get site-packages path.
 
     Args:
         install_spec: The package specification to install
         force_reinstall: Whether to force reinstall the package
+        index_url: Optional package index URL for private registries
 
     Returns:
         Complete uvx command as list of strings
@@ -48,6 +61,8 @@ def _build_site_packages_command(
     cmd = ['uvx', '--verbose']
     if force_reinstall:
         cmd.append('--force-reinstall')
+    if index_url:
+        cmd.extend(['--index-url', index_url])
     cmd.extend(
         [
             '--from',
@@ -114,6 +129,7 @@ def get_site_packages_path(
     *,
     force_reinstall: bool = False,
     expected_package: str,
+    index_url: str | None = None,
 ) -> tuple[Path, str, Path]:
     """Get the site-packages directory for a uvx installation.
 
@@ -121,6 +137,7 @@ def get_site_packages_path(
         install_spec: The package specification to install (e.g., git+https://...)
         force_reinstall: Whether to force reinstall the package
         expected_package: The module name to match for dist-info (required)
+        index_url: Optional package index URL for private registries
 
     Returns:
         Tuple of (site_packages_path, dist_info_name_if_found)
@@ -138,6 +155,7 @@ def get_site_packages_path(
     cmd = _build_site_packages_command(
         install_spec,
         force_reinstall=force_reinstall,
+        index_url=index_url,
     )
     result = _run_uvx_subprocess(cmd)
 
