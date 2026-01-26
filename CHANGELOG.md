@@ -36,4 +36,4 @@ View [unreleased changes][unreleased] since the last release.
 ## [0.0.1] <a name="0.0.1" href="#0.0.1">-</a> September 10, 2025
 
 [0.0.1]: https://github.com/hotdog-werx/pkglink/tree/0.0.1
-[unreleased]: https://github.com/hotdog-werx/pkglink/compare/0.0.1...HEAD
+[unreleased]: https://github.com/hotdog-werx/pkglink/compare/1.1.0...HEAD
